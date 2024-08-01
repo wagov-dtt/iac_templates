@@ -7,3 +7,5 @@
   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
   kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=120s
   helm install rancher rancher-stable/rancher --namespace cattle-system --set hostname=$1
+  echo "Exporting bootstrap secret (for first admin login to https://$1)"
+  kubectl get secret --namespace cattle-system bootstrap-secret -o go-template="{{.data.bootstrapPassword|base64decode}}"

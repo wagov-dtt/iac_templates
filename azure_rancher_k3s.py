@@ -28,24 +28,10 @@ commands = [
 for cmd in commands:
     subprocess.run(cmd, shell=True, check=True)
 
-print(f"VM created with backups. Rancher installing at https://{fqdn}")
+print(f"VM created with backups. Rancher installing at https://{fqdn} ...")
 
-bootstrap_cmd = r'kubectl get secret --namespace cattle-system bootstrap-secret -o go-template="{{.data.bootstrapPassword|base64decode}}"'
-az_cmd = f"az vm run-command invoke -g {name} -n {name}-rancher --command-id RunShellScript --scripts '{bootstrap_cmd}'"
+bootstrap = f'curl -sL https://raw.githubusercontent.com/adonm/iac_templates/main/azure_rancher_k3s.sh | bash -s {fqdn}'
+cmd = f"az vm run-command invoke -g {name} -n {name}-rancher --command-id RunShellScript --scripts '{bootstrap}' --query 'value[0].message' -o tsv"
+print(cmd)
 
-for attempt in range(30):
-    try:
-        result = subprocess.run(az_cmd, shell=True, check=True, capture_output=True, text=True)
-        bootstrap_password = result.stdout.strip().split('\n')[-1]
-        if bootstrap_password:
-            print(f"\nRancher ready at https://{fqdn}")
-            print(f"Bootstrap Password: {bootstrap_password}")
-            break
-    except subprocess.CalledProcessError:
-        pass
-    time.sleep(20)
-    if attempt % 3 == 2:
-        print(f"Waiting for Rancher... (Attempt {attempt+1}/30)")
-else:
-    print("\nTimed out waiting for Rancher. Check VM logs.")
-
+subprocess.run(cmd, shell=True, check=True)
