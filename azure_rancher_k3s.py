@@ -21,8 +21,8 @@ fqdn = f"{dns_name}.{location}.cloudapp.azure.com"
 commands = [
     f"az group create -n {name} -l {location}",
     f"az vm create -g {name} -n {name}-rancher --image {vm_image} --generate-ssh-keys --size {vm_size} --public-ip-sku Standard --public-ip-address-dns-name {dns_name} --assign-identity --role contributor --scope /subscriptions/$(az account show --query id -o tsv)/resourceGroups/{name}",
-    f"az network nsg rule create -g {name} --nsg-name {name}-rancherNSG -n AllowHTTP --priority 1000 --destination-port-ranges 80 --access Allow --protocol Tcp",
-    f"az network nsg rule create -g {name} --nsg-name {name}-rancherNSG -n AllowHTTPS --priority 1001 --destination-port-ranges 443 --access Allow --protocol Tcp",
+    f"az network nsg rule create -g {name} --nsg-name {name}-rancherNSG -n AllowHTTP --priority 1010 --destination-port-ranges 80 --access Allow --protocol Tcp",
+    f"az network nsg rule create -g {name} --nsg-name {name}-rancherNSG -n AllowHTTPS --priority 1020 --destination-port-ranges 443 --access Allow --protocol Tcp",
 ]
 
 for cmd in commands:
