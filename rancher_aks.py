@@ -6,7 +6,7 @@ def run(cmd, capture_output=False):
     if capture_output:
         return subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
     else:
-        return subprocess.run(cmd, shell=True, check=True)
+        subprocess.check_call(cmd, shell=True)
 
 def setup_aks_preview():
     # Set up AKS preview extension and register feature flags
