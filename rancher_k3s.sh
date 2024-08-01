@@ -1,7 +1,7 @@
   #!/bin/bash
   # First arg should be FQDN for rancher
   # K3S pinned to stable version supported by rancher, see https://www.suse.com/suse-rancher/support-matrix/all-supported-versions/
-  curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.28" sh -
+  curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=v1.28 sh -
   export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
   kubectl create namespace cattle-system
   curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
