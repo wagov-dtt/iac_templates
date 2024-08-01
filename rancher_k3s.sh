@@ -16,5 +16,5 @@ helm repo add rancher-stable https://releases.rancher.com/server-charts/stable
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=120s
 
-helm install rancher rancher-stable/rancher --namespace cattle-system --set hostname=$RANCHER_FQDN --set bootstrapPassword=$BOOTSTRAP_PASSWORD --set ingress.tls.source=letsEncrypt --set letsEncrypt.email=admin@$RANCHER_FQDN --set letsEncrypt.ingress.class=nginx
+helm install rancher rancher-stable/rancher --namespace cattle-system --set hostname=$RANCHER_FQDN --set bootstrapPassword=$BOOTSTRAP_PASSWORD --set ingress.tls.source=letsEncrypt --set letsEncrypt.email=admin@$RANCHER_FQDN --set letsEncrypt.ingress.class=traefik
 echo "https://$RANCHER_FQDN/dashboard/?setup=$BOOTSTRAP_PASSWORD"
