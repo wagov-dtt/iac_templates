@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import sys, subprocess, time, json
 
 def run(cmd):
@@ -28,26 +29,23 @@ def setup_aks_preview():
     run("az provider register --namespace Microsoft.ContainerService")
 
 def setup_cluster(name):
-    # Create resource group and AKS cluster
-    run(f"az group create --name {name} --location eastus")
-    run(f"az aks create --resource-group {name} --name {name} --sku automatic")
+    # Create resource group and AKS cluster in Australia East
+    run(f"az group create --name {name} --location australiaeast")
+    run(f"az aks create --resource-group {name} --name {name} --location australiaeast --sku automatic")
     run(f"az aks enable-addons --addons azure-defender,azure-policy,backup --resource-group {name} --name {name}")
 
-def setup_rancher_and_aso2(name):
-    # Set up Rancher and ASO2
+def setup_rancher(name):
+    # Set up Rancher
     run(f"az aks get-credentials --resource-group {name} --name {name} --overwrite-existing")
-    for repo in ["rancher-latest https://releases.rancher.com/server-charts/latest", 
-                 "aso2 https://raw.githubusercontent.com/Azure/azure-service-operator/main/v2/charts"]:
-        run(f"helm repo add {repo}")
+    run("helm repo add rancher-latest https://releases.rancher.com/server-charts/latest")
     run("helm repo update")
     run("kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.1/cert-manager.yaml")
     run("helm install rancher rancher-latest/rancher --namespace cattle-system --create-namespace --set hostname=rancher.my-domain.com --set bootstrapPassword=admin")
-    run("helm install aso2 aso2/azure-service-operator --namespace azure-service-operator-system --create-namespace")
 
 def main(name):
     setup_aks_preview()
     setup_cluster(name)
-    setup_rancher_and_aso2(name)
+    setup_rancher(name)
     print("Deployment and setup completed successfully.")
 
 if __name__ == "__main__":
