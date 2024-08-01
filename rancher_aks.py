@@ -35,7 +35,9 @@ def setup_aks_preview():
 def setup_cluster(name):
     # Create resource group and AKS cluster in Australia East
     run(f"az group create --name {name} --location australiaeast")
-    run(f"az aks create --resource-group {name} --name {name} --location australiaeast --sku automatic")
+    
+    # Create AKS cluster without SSH key
+    run(f"az aks create --resource-group {name} --name {name} --location australiaeast --sku automatic --no-ssh-key")
     run(f"az aks enable-addons --addons azure-defender,azure-policy,backup --resource-group {name} --name {name}")
 
 def setup_rancher(name):
