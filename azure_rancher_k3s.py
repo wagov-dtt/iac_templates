@@ -30,7 +30,7 @@ for cmd in commands:
 
 print(f"VM created with backups. Rancher installing at https://{fqdn} ...")
 
-bootstrap = f'curl -sL https://raw.githubusercontent.com/adonm/iac_templates/main/azure_rancher_k3s.sh | bash -s {fqdn}'
+bootstrap = f'curl -sL https://raw.githubusercontent.com/adonm/iac_templates/main/rancher_k3s.sh | bash -s {fqdn}'
 cmd = f"az vm run-command invoke -g {name} -n {name}-rancher --command-id RunShellScript --scripts '{bootstrap}' --query 'value[0].message' -o tsv"
 print(cmd)
 

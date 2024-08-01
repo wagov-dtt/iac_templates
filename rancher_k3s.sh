@@ -1,6 +1,7 @@
   #!/bin/bash
   # Only arg should be FQDN for rancher
   curl -sfL https://get.k3s.io | sh -
+  export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
   kubectl create namespace cattle-system
   curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
   helm repo add rancher-stable https://releases.rancher.com/server-charts/stable
