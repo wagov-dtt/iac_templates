@@ -14,7 +14,7 @@ if len(sys.argv) != 2:
 name = sys.argv[1]
 location = os.environ.get('AZURE_LOCATION', 'australiaeast')
 vm_size = os.environ.get('AZURE_VM_SIZE', 'Standard_E4as_v4')
-vm_image = os.environ.get('AZURE_VM_IMAGE', 'Debian12')
+vm_image = os.environ.get('AZURE_VM_IMAGE', 'Debian11')
 dns_name = f"{name}-rancher-{''.join(random.choices(string.ascii_lowercase + string.digits, k=4))}"
 fqdn = f"{dns_name}.{location}.cloudapp.azure.com"
 
