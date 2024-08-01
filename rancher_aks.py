@@ -2,8 +2,11 @@
 
 import sys, subprocess, time, json
 
-def run(cmd):
-    return subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+def run(cmd, capture_output=False):
+    if capture_output:
+        return subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+    else:
+        return subprocess.run(cmd, shell=True, check=True)
 
 def setup_aks_preview():
     # Set up AKS preview extension and register feature flags
@@ -19,7 +22,8 @@ def setup_aks_preview():
 
     print("Waiting for feature flags to register...")
     while True:
-        status = json.loads(run("az feature show --namespace Microsoft.ContainerService --name AutomaticSKUPreview").stdout)['properties']['state']
+        result = run("az feature show --namespace Microsoft.ContainerService --name AutomaticSKUPreview", capture_output=True)
+        status = json.loads(result.stdout)['properties']['state']
         if status == 'Registered':
             print("AutomaticSKUPreview is now registered.")
             break
