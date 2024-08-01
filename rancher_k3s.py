@@ -36,7 +36,7 @@ commands = [
     f"az group create -n {name} -l {location}",
     f"az vm create -g {name} -n {name}-rancher --image {vm_image} --generate-ssh-keys --size {vm_size} --public-ip-sku Standard --public-ip-address-dns-name {dns_name} --custom-data {temp_file.name} --assign-identity --role contributor --scope /subscriptions/$(az account show --query id -o tsv)/resourceGroups/{name}",
     f"az backup vault create -n {name}Vault -g {name} -l {location}",
-    f"az backup protection enable-for-vm -g {name} --vault-name {name}Vault --vm {name}-rancher --policy-name DefaultPolicy"
+    f"az backup protection enable-for-vm -g {name} --vault-name {name}Vault --vm {name}-rancher --policy-name EnhancedPolicy"
 ]
 
 for cmd in commands:
