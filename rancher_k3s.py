@@ -14,7 +14,7 @@ if len(sys.argv) != 2:
 name = sys.argv[1]
 location = os.environ.get('AZURE_LOCATION', 'australiaeast')
 vm_size = os.environ.get('AZURE_VM_SIZE', 'Standard_E4as_v4')
-vm_image = os.environ.get('AZURE_VM_IMAGE', 'Debian11')
+vm_image = os.environ.get('AZURE_VM_IMAGE', 'Debian:debian-12:12-gen2:latest')
 dns_name = f"{name}-rancher-{''.join(random.choices(string.ascii_lowercase + string.digits, k=4))}"
 fqdn = f"{dns_name}.{location}.cloudapp.azure.com"
 
@@ -46,7 +46,7 @@ os.remove(temp_file.name)
 
 print(f"VM created with backups. Rancher installing at https://{fqdn}")
 
-kubectl_cmd = 'sudo kubectl get secret --namespace cattle-system bootstrap-secret -o go-template="{{.data.bootstrapPassword|base64decode}}"'
+kubectl_cmd = r'sudo kubectl get secret --namespace cattle-system bootstrap-secret -o go-template="{{.data.bootstrapPassword|base64decode}}"'
 az_cmd = f"az vm run-command invoke -g {name} -n {name}-rancher --command-id RunShellScript --scripts '{kubectl_cmd}'"
 
 for attempt in range(30):
