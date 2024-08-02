@@ -2,7 +2,7 @@
 
 Some convenient quick starts for use in cloud shells
 
-[![Open Azure Cloud Shell](https://aka.ms/deploytoazurebutton)](https://shell.azure.com/bash) - Open Azure Cloud Shell
+[![Open Azure Cloud Shell](https://aka.ms/deploytoazurebutton)](https://shell.azure.com/bash) (Open Azure Cloud Shell)
 
 ## Kuberenetes Platform as a Service
 
