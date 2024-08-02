@@ -35,10 +35,8 @@ Once manager setup with auth etc, then use the kubectl cmd line in rancher to ru
 
 ```bash
 # Ingress and letsencrypt setup
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo add jetstack https://charts.jetstack.io
 helm repo update
-helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace
 helm install cert-manager jetstack/cert-manager --set crds.enabled=true -n cert-manager --create-namespace
 ```
 
@@ -58,7 +56,7 @@ spec:
     solvers:
     - http01:
         ingress:
-          class: nginx
+          class: webapprouting.kubernetes.azure.com
 ```
 
 ```yaml
