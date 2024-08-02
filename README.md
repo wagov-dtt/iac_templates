@@ -56,7 +56,7 @@ spec:
     solvers:
     - http01:
         ingress:
-          class: webapprouting.kubernetes.azure.com
+          ingressClassName: webapprouting.kubernetes.azure.com
 ```
 
 ```yaml
