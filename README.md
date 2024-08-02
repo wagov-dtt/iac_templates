@@ -40,6 +40,21 @@ helm repo update
 helm install cert-manager jetstack/cert-manager --set crds.enabled=true -n cert-manager --create-namespace
 ```
 
+Import the below to ensure core rancher agent doesn't get evicted (see [Karpenter Disruption Budgets](https://karpenter.sh/docs/concepts/disruption/#disruption-budgets))
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cattle-cluster-agent-pdb
+  namespace: cattle-system
+spec:
+  selector:
+    matchLabels:
+      app: cattle-cluster-agent
+  minAvailable: 2
+```
+
 Import the below yaml and validate ssl works with a whoami container:
 
 ```yaml
