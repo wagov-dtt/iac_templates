@@ -3,7 +3,7 @@ apiVersion: approuting.kubernetes.azure.com/v1alpha1
 kind: NginxIngressController
 metadata:
   name: nginx-acme
-  namespace: ingress-system
+  namespace: app-routing-system
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
@@ -34,7 +34,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: update-ingress-domains
-  namespace: ingress-system
+  namespace: app-routing-system
 spec:
   schedule: "0 0 * * *"  # Run daily at midnight
   jobTemplate:
