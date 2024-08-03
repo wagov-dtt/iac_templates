@@ -6,10 +6,10 @@ metadata:
   namespace: app-routing-system
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    ingressclass.kubernetes.io/is-default-class: "true"
 spec:
   ingressClassName: nginx-acme
   controllerNamePrefix: nginx-acme
-  defaultIngressClass: true
   domains:
     - placeholder.sslip.io
 
