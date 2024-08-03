@@ -10,8 +10,6 @@ metadata:
 spec:
   ingressClassName: nginx-acme
   controllerNamePrefix: nginx-acme
-  domains:
-    - placeholder.sslip.io
 
 ---
 apiVersion: cert-manager.io/v1
