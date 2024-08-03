@@ -1,0 +1,59 @@
+---
+apiVersion: approuting.kubernetes.azure.com/v1alpha1
+kind: NginxIngressController
+metadata:
+  name: nginx-acme
+  namespace: ingress-system
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx-acme
+  controllerNamePrefix: nginx-acme
+  defaultIngressClass: true
+  domains:
+    - placeholder.sslip.io
+
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: letsencrypt-prod@adonm.fastmail.fm
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx-acme
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: update-ingress-domains
+  namespace: ingress-system
+spec:
+  schedule: "0 0 * * *"  # Run daily at midnight
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: update-domains
+            image: mcr.microsoft.com/azure-cli
+            command:
+            - /bin/bash
+            - -c
+            - |
+              INGRESS_IP=$(kubectl get services -n ingress-system -l app=nginx-acme-ingress-nginx-controller -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
+              if [ -n "$INGRESS_IP" ]; then
+                kubectl patch nginxingresscontroller nginx-acme --type=merge -p "{\"spec\":{\"domains\":[\"${INGRESS_IP}.sslip.io\"]}}"
+                echo "Updated NginxIngressController domains to ${INGRESS_IP}.sslip.io"
+              else
+                echo "Failed to get Ingress Controller IP"
+                exit 1
+              fi
+          restartPolicy: OnFailure
