@@ -52,7 +52,7 @@ spec:
   selector:
     matchLabels:
       app: cattle-cluster-agent
-  minAvailable: 2
+  minAvailable: 1
 ```
 
 Import the below yaml and validate ssl works with a whoami container:
