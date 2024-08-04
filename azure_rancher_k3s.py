@@ -6,7 +6,7 @@ To run in Azure Cloud Shell:
 curl -sL https://raw.githubusercontent.com/adonm/iac_templates/main/azure_rancher_k3s.py | python3 - <RG NAME/VM PREFIX>
 """
 
-import os, subprocess, random, string, sys
+import os, subprocess, random, string, sys, time
 
 if len(sys.argv) != 2:
     sys.exit("Usage: python rancher_k3s.py <name>")
@@ -35,4 +35,24 @@ bootstrap = f'curl -sL https://raw.githubusercontent.com/adonm/iac_templates/mai
 cmd = f"az vm run-command invoke -g {name} -n {name}-rancher --command-id RunShellScript --scripts '{bootstrap}' --query 'value[0].message' -o tsv"
 print(cmd)
 
+# Check if VM is ready for invoke
+max_attempts = 10  # 5 minutes (10 * 30 seconds)
+attempt = 0
+while attempt < max_attempts:
+    try:
+        check_cmd = f"az vm run-command invoke -g {name} -n {name}-rancher --command-id RunShellScript --scripts 'echo \"VM is ready\"' --query 'value[0].message' -o tsv"
+        result = subprocess.run(check_cmd, shell=True, check=True, capture_output=True, text=True)
+        if "VM is ready" in result.stdout:
+            print("VM is ready for bootstrap")
+            break
+    except subprocess.CalledProcessError:
+        print(f"VM not ready yet. Attempt {attempt + 1}/{max_attempts}")
+        time.sleep(30)
+    attempt += 1
+
+if attempt == max_attempts:
+    print("VM did not become ready in time. Exiting.")
+    sys.exit(1)
+
+# Run the bootstrap command
 subprocess.run(cmd, shell=True, check=True)
