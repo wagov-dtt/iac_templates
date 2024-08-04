@@ -6,7 +6,7 @@
 RANCHER_FQDN=$1
 BOOTSTRAP_PASSWORD=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 16 | head -n 1)
 
-curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=v1.28 sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=v1.28 INSTALL_K3S_EXEC="--kubelet-arg=max-pods=10000" sh -
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -18,3 +18,18 @@ helm repo add rancher-stable https://releases.rancher.com/server-charts/stable
 helm install rancher rancher-stable/rancher --namespace cattle-system --create-namespace --set hostname=$RANCHER_FQDN --set bootstrapPassword=$BOOTSTRAP_PASSWORD --set ingress.tls.source=letsEncrypt --set letsEncrypt.email=admin@$RANCHER_FQDN --set letsEncrypt.ingress.class=traefik
 sleep 10
 echo "Rancher installed at: https://$RANCHER_FQDN/dashboard/?setup=$BOOTSTRAP_PASSWORD"
+
+# Install ArgoCD
+helm repo add argo https://argoproj.github.io/argo-helm
+helm repo update
+helm install argocd argo/argo-cd --namespace argocd --create-namespace --set server.extraArgs={--insecure}
+
+# Wait for ArgoCD to be ready
+kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
+
+# Get the initial admin password
+ARGO_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+
+echo "ArgoCD installed. Access it through Rancher or by port-forwarding."
+echo "ArgoCD Username: admin"
+echo "ArgoCD Initial password: $ARGO_PASSWORD"
