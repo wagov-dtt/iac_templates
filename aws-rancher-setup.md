@@ -1,5 +1,5 @@
 # Notes on setting up rancher in AWS
-Eventually script maybe to use in AWS cloud shell?
+This is just the first node, which can be used to configure and build a lot more resources with the appropriate credentials delegated to it. Eventually script maybe to use in AWS cloud shell?
 
 ## Create a VPC
 
@@ -11,12 +11,14 @@ Public subnet only, 3 availability zones, internet gateway and route table. Like
 - r6a.xlarge
 - 1 volume(s) - 512 GiB (encrypted)
 
-## Run through rke2 and rancher setup on instance
+Assign an `{fqdn}` to the ip of the instance (or just use `{ip}.sslip.io`), keep track of this for the next step
 
-all of below can be one shell script, todo. Using rke2 instead of k3s as want to try and keep storage/network plane consistent (cilium/longhorn) which is easier with rke2.
+## Run through k3s and rancher setup on instance
 
-https://docs.rke2.io/install/quickstart
+Connect to the instance, and run the following python script to setup k3s and rancher:
 
-https://docs.rke2.io/cluster_access
+```bash
+curl -sL https://raw.githubusercontent.com/wagov-dtt/iac_templates/main/rancher_k3s.py | python3 - {fqdn}
+```
 
-https://ranchermanager.docs.rancher.com/getting-started/installation-and-upgrade/install-upgrade-on-a-kubernetes-cluster
+Navigate to the url shown, change password and use the cluster manager to create RKE2 clusters on your cloud provider / infrastructure of choice.
