@@ -7,9 +7,9 @@ Public subnet only, 3 availability zones, internet gateway and route table. Like
 
 ## Create a Suse EC2 instance
 
-SUSE Linux Enterprise Server 15 SP6 (HVM, 64-bit, SSD-Backed)
-r6a.xlarge
-1 volume(s) - 512 GiB (encrypted)
+- SUSE Linux Enterprise Server 15 SP6 (HVM, 64-bit, SSD-Backed)
+- r6a.xlarge
+- 1 volume(s) - 512 GiB (encrypted)
 
 ## Run through rke2 and rancher setup on instance
 
