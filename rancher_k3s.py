@@ -33,7 +33,7 @@ def main(rancher_fqdn):
         sys.exit("This script must be run as root (use sudo).")
 
     increase_limits()
-    run("curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=v1.28 INSTALL_K3S_EXEC=\"--kubelet-arg=max-pods=10000\" sh -", shell=True)
+    run("curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=v1.28 INSTALL_K3S_EXEC=\"--kubelet-arg=max-pods=1000\" sh -", shell=True)
     os.environ["KUBECONFIG"] = "/etc/rancher/k3s/k3s.yaml"
     run("curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash", shell=True)
     run(["helm", "repo", "add", "jetstack", "https://charts.jetstack.io", "--force-update"])
