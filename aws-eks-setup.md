@@ -17,10 +17,12 @@ There are some defaults that can be overridden with env vars (e.g. just run `exp
 
 ```yaml
   region: {env('AWS_REGION', 'ap-southeast-2')}
-  instanceType: {env('AWS_INSTANCE_TYPE' ,'r6a.xlarge')}
-  volumeSize: {env('AWS_VOLUME_SIZE', 512)}
+  instanceType: {env('AWS_INSTANCE_TYPE' ,'i4i.xlarge')}
+  volumeSize: {env('AWS_VOLUME_SIZE', 64)}
 ```
 
 ## TODO: Longhorn with local ephemeral volumes
+
+`apt install linux-modules-extra-aws` is needed for nvme-tcp module on each node (todo add to alpine daemonset)
 
 Needs some work to figure out how to format and mount ephemeral volumes as part of the launch template so longhorn can manage them easily.

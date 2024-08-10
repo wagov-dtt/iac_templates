@@ -12,27 +12,18 @@ kind: ClusterConfig
 metadata:
   name: {name}
   region: {env('AWS_REGION', 'ap-southeast-2')}
-cloudWatch:
-  clusterLogging:
-    enableTypes: ["*"]
-addonsConfig:
-  disableDefaultAddons: true
-addons:
-  - name: coredns
-  - name: amazon-cloudwatch-observability
-  - name: aws-guardduty-agent
 iam:
   withOIDC: true
 managedNodeGroups:
 - name: workers
-  instanceType: {env('AWS_INSTANCE_TYPE' ,'r6a.xlarge')}
+  instanceType: {env('AWS_INSTANCE_TYPE' ,'i4i.xlarge')}
   minSize: 3
   maxSize: 6
   desiredCapacity: 3
   privateNetworking: true
-  volumeSize: {env('AWS_VOLUME_SIZE', 512)}
-  maxPodsPerNode: 1000
-  amiFamily: AmazonLinux2023
+  volumeSize: {env('AWS_VOLUME_SIZE', 64)}
+  maxPodsPerNode: 600
+  amiFamily: Ubuntu2204
   spot: true
 """
 
@@ -44,13 +35,13 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmpdir:
         os.chdir(tmpdir)
         print(eks_cluster)
-        open("eks-config.yaml", "w").write(eks_cluster.split("managedNodeGroups:")[0])
+        open("eks-config.yaml", "w").write(eks_cluster)
         run("curl -sL https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz | tar xz")
         run("curl -sL https://github.com/cilium/cilium-cli/releases/latest/download/cilium-linux-amd64.tar.gz | tar xz")
-        run("./eksctl create cluster -f eks-config.yaml --without-nodegroup")
-        run(f"./cilium install --set kubeProxyReplacement=true --set k8sServiceHost=$(./eksctl get cluster --name {name} -o yaml | grep Endpoint: | cut -d'/' -f 3) --set k8sServicePort=443")
-        open("eks-config.yaml", "w").write(eks_cluster)
+        run("./eksctl create cluster -f eks-config.yaml --without-nodegroup || ./eksctl upgrade cluster -f eks-config.yaml")
+        run(f"./cilium install --set cni.chainingMode=aws-cni --set cni.exclusive=false --set enableIPv4Masquerade=false --set routingMode=native --set endpointRoutes.enabled=true")
         run(f"./eksctl create nodegroup -f eks-config.yaml")
-        run(f"./cilium hubble enable --ui")
         run("./cilium status --wait")
+        run("kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/prerequisite/longhorn-spdk-setup.yaml")
+        run("kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/prerequisite/longhorn-nvme-cli-installation.yaml")
         os.chdir(cwd)
