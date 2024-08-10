@@ -32,7 +32,7 @@ managedNodeGroups:
   privateNetworking: true
   volumeSize: {env('AWS_VOLUME_SIZE', 512)}
   maxPodsPerNode: 1000
-  amiFamily: Bottlerocket
+  amiFamily: AmazonLinux2023
   spot: true
 """
 
