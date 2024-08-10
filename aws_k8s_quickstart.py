@@ -25,12 +25,12 @@ iam:
   withOIDC: true
 managedNodeGroups:
 - name: workers
-  instanceType: i4i.xlarge
+  instanceType: {env('AWS_INSTANCE_TYPE' ,'r6a.xlarge')}
   minSize: 3
   maxSize: 6
   desiredCapacity: 3
   privateNetworking: true
-  volumeSize: 64
+  volumeSize: {env('AWS_VOLUME_SIZE', 512)}
   maxPodsPerNode: 1000
   amiFamily: Bottlerocket
   spot: true
@@ -53,6 +53,4 @@ if __name__ == "__main__":
         run(f"./eksctl create nodegroup -f eks-config.yaml")
         run(f"./cilium hubble enable --ui")
         run("./cilium status --wait")
-        run("./cilium connectivity test")
-
         os.chdir(cwd)
