@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: RKE2 quickstart VPC with longhorn ephemeral storage
+
+Parameters:
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/debian/release/bookworm/latest/amd64
+  InstanceType:
+    Type: String
+    Default: i4i.xlarge
+    Description: EC2 instance type
+  InstanceBase:
+    Type: Number
+    Default: "1"
+    Description: Base number of OnDemand instances in the Auto Scaling group
+  InstanceDesired:
+    Type: Number
+    Default: "3"
+    Description: Desired number of Spot instances in the Auto Scaling group
+  VpcCidrBlock:
+    Type: String
+    Default: 172.16.0.0/16
+    Description: The CIDR block for the VPC (must be a /16 block)
+  CommandAssociation:
+    Type: String
+    Default: "echo 'No command specified'"
+    Description: Command to associate post instance launch (e.g. rancher registration)
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidrBlock
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidrBlock, 3, 12]]
+      MapPublicIpOnLaunch: true
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidrBlock, 3, 12]]
+      MapPublicIpOnLaunch: true
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCidrBlock, 3, 12]]
+      MapPublicIpOnLaunch: true
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnet3RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet3
+      RouteTableId: !Ref PublicRouteTable
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref ImageId
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        MetadataOptions:
+          HttpTokens: required
+          HttpEndpoint: enabled
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 128
+              VolumeType: gp3
+              DeleteOnTermination: true
+        UserData:
+          !Base64 |
+              #!/bin/bash
+              mkdir /tmp/ssm; cd /tmp/ssm
+              wget wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
+              sudo dpkg -i amazon-ssm-agent.deb; sudo systemctl enable amazon-ssm-agent
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub ${AWS::StackName}-Instance
+              - Key: Project
+                Value: !Ref AWS::StackName
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+        - !Ref PublicSubnet3
+      MinSize: 3
+      MaxSize: 300
+      DesiredCapacity: !Ref InstanceDesired
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          OnDemandBaseCapacity: !Ref InstanceBase
+          SpotAllocationStrategy: capacity-optimized
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref LaunchTemplate
+            Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ASG
+          PropagateAtLaunch: true
+
+
+  SSMAssociation:
+    Type: AWS::SSM::Association
+    Properties:
+      Name: AWS-RunShellScript
+      AssociationName: !Sub ${AWS::StackName}-PostLaunchCommand
+      Targets:
+        - Key: tag:aws:autoscaling:groupName
+          Values:
+            - !Ref AutoScalingGroup
+      Parameters:
+        commands:
+          - |
+              mkdir /var/lib/longhorn
+              mkfs.ext4 /dev/nvme1n1
+              mount /dev/nvme1n1 /var/lib/longhorn
+          - !Ref CommandAssociation
+      WaitForSuccessTimeoutSeconds: 300
+
+Outputs:
+  VPCId:
+    Value: !Ref VPC
+  AutoScalingGroupName:
+    Value: !Ref AutoScalingGroup
