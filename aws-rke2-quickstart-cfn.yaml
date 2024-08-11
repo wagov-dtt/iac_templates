@@ -5,18 +5,6 @@ Parameters:
   ImageId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/debian/release/bookworm/latest/amd64
-  InstanceType:
-    Type: String
-    Default: i4i.xlarge
-    Description: EC2 instance type
-  InstanceBase:
-    Type: Number
-    Default: "1"
-    Description: Base number of OnDemand instances in the Auto Scaling group
-  InstanceDesired:
-    Type: Number
-    Default: "3"
-    Description: Desired number of Spot instances in the Auto Scaling group
   VpcCidrBlock:
     Type: String
     Default: 172.16.0.0/16
@@ -119,7 +107,6 @@ Resources:
     Properties:
       LaunchTemplateData:
         ImageId: !Ref ImageId
-        InstanceType: !Ref InstanceType
         IamInstanceProfile:
           Arn: !GetAtt InstanceProfile.Arn
         MetadataOptions:
@@ -128,24 +115,24 @@ Resources:
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
             Ebs:
-              VolumeSize: 128
+              VolumeSize: 300
               VolumeType: gp3
               DeleteOnTermination: true
         UserData:
           !Base64 |
               #!/bin/bash
               mkdir /tmp/ssm; cd /tmp/ssm
-              wget wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
-              sudo dpkg -i amazon-ssm-agent.deb; sudo systemctl enable amazon-ssm-agent
-        TagSpecifications:
-          - ResourceType: instance
-            Tags:
-              - Key: Name
-                Value: !Sub ${AWS::StackName}-Instance
-              - Key: Project
-                Value: !Ref AWS::StackName
+              wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
+              dpkg -i amazon-ssm-agent.deb; systemctl enable amazon-ssm-agent
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -y && apt-get install -y git open-iscsi nvme-cli
+              git clone -b longhorn-1.6 https://github.com/longhorn/spdk.git spdk && bash spdk/scripts/setup.sh
+              echo "vm.nr_hugepages=1024" >> /etc/sysctl.conf
+              echo 1024 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+              echo "nvme_tcp" > /etc/modules-load.d/nvme_tcp.conf
+              modprobe nvme-tcp
 
-  AutoScalingGroup:
+  AutoScalingGroupCompute:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier:
@@ -154,20 +141,54 @@ Resources:
         - !Ref PublicSubnet3
       MinSize: 3
       MaxSize: 300
-      DesiredCapacity: !Ref InstanceDesired
+      DesiredCapacity: 3
       MixedInstancesPolicy:
         InstancesDistribution:
-          OnDemandBaseCapacity: !Ref InstanceBase
+          OnDemandBaseCapacity: 3
+          OnDemandPercentageAboveBaseCapacity: 10
           SpotAllocationStrategy: capacity-optimized
         LaunchTemplate:
           LaunchTemplateSpecification:
             LaunchTemplateId: !Ref LaunchTemplate
             Version: !GetAtt LaunchTemplate.LatestVersionNumber
+          Overrides:
+            - InstanceType: m6a.xlarge
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-ASG
+          Value: !Sub ${AWS::StackName}-Compute-Instance
+          PropagateAtLaunch: true
+        - Key: NodeType
+          Value: Compute
           PropagateAtLaunch: true
 
+  AutoScalingGroupStorage:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+        - !Ref PublicSubnet3
+      MinSize: 0
+      MaxSize: 300
+      DesiredCapacity: 0
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          OnDemandBaseCapacity: 0
+          OnDemandPercentageAboveBaseCapacity: 10
+          SpotAllocationStrategy: capacity-optimized
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref LaunchTemplate
+            Version: !GetAtt LaunchTemplate.LatestVersionNumber
+          Overrides:
+            - InstanceType: i4i.xlarge
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Storage-Instance
+          PropagateAtLaunch: true
+        - Key: NodeType
+          Value: Storage
+          PropagateAtLaunch: true
 
   SSMAssociation:
     Type: AWS::SSM::Association
@@ -177,18 +198,16 @@ Resources:
       Targets:
         - Key: tag:aws:autoscaling:groupName
           Values:
-            - !Ref AutoScalingGroup
+            - !Ref AutoScalingGroupCompute
+            - !Ref AutoScalingGroupStorage
       Parameters:
         commands:
-          - |
-              mkdir /var/lib/longhorn
-              mkfs.ext4 /dev/nvme1n1
-              mount /dev/nvme1n1 /var/lib/longhorn
           - !Ref CommandAssociation
-      WaitForSuccessTimeoutSeconds: 300
 
 Outputs:
   VPCId:
     Value: !Ref VPC
-  AutoScalingGroupName:
-    Value: !Ref AutoScalingGroup
+  AutoScalingGroupComputeName:
+    Value: !Ref AutoScalingGroupCompute
+  AutoScalingGroupStorageName:
+    Value: !Ref AutoScalingGroupStorage
