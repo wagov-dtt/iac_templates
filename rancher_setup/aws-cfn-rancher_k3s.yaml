@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Deploy Rancher + K3S on a Debian 12 VM with SSM
+Description: 'Deploy Rancher + K3S on a Debian 12 VM with SSM'
 
 Parameters:
   BootstrapPassword:
@@ -7,7 +7,10 @@ Parameters:
     NoEcho: true
   FQDN:
     Type: String
-    Default: sslip.io
+    Default: 'sslip.io'
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/debian/release/bookworm/latest/amd64
 
 Resources:
   VPC:
@@ -16,9 +19,7 @@ Resources:
       CidrBlock: 10.0.0.0/16
       EnableDnsHostnames: true
       EnableDnsSupport: true
-      Tags:
-        - Key: Name
-          Value: !Ref AWS::StackName
+      Tags: [{Key: Name, Value: !Ref 'AWS::StackName'}]
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -58,8 +59,8 @@ Resources:
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: Allow HTTP/HTTPS
-      GroupDescription: Allow HTTP and HTTPS access
+      GroupName: "Allow HTTP/HTTPS"
+      GroupDescription: "Allow HTTP and HTTPS access"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -74,41 +75,38 @@ Resources:
   SSMInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      Path: /
-      Roles:
-        - !Ref SSMInstanceRole
+      Path: "/"
+      Roles: [!Ref SSMInstanceRole]
 
   SSMInstanceRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              Service:
-                - ec2.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      ManagedPolicyArns:
+              Service: [ec2.amazonaws.com]
+            Action: ["sts:AssumeRole"]
+      ManagedPolicyArns: 
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
 
   Debian12Instance:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: m6a.xlarge
-      ImageId: /aws/service/debian/release/bookworm/latest/amd64
+      Tags: [{Key: Name, Value: !Ref 'AWS::StackName'}]
+      InstanceType: r6a.xlarge
+      ImageId: !Ref ImageId
       IamInstanceProfile: !Ref SSMInstanceProfile
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0
-          GroupSet:
-            - !Ref SecurityGroup
+          GroupSet: [!Ref SecurityGroup]
           SubnetId: !Ref Subnet
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
-            VolumeSize: 512
+            VolumeSize: 600
       UserData: !Base64
         Fn::Sub: |
           #!/bin/bash
@@ -125,15 +123,12 @@ Outputs:
     Value: !Ref Debian12Instance
   FQDN:
     Description: FQDN of the EC2 instance
-    Value: !If
+    Value: !If 
       - UseCustomFQDN
-      - !Sub ${FQDN}/dashboard/?setup=${BootstrapPassword}
-      - !Sub
-        - ${IP}.sslip.io/dashboard/?setup=${BootstrapPassword}
+      - !Sub '${FQDN}/dashboard/?setup=${BootstrapPassword}'
+      - !Sub 
+        - '${IP}.sslip.io/dashboard/?setup=${BootstrapPassword}'
         - IP: !GetAtt Debian12Instance.PublicIp
 
 Conditions:
-  UseCustomFQDN: !Not
-    - !Equals
-      - !Ref FQDN
-      - sslip.io
+  UseCustomFQDN: !Not [!Equals [!Ref FQDN, 'sslip.io']]
