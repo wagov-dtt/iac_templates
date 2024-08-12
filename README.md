@@ -1,8 +1,27 @@
 # Infrastructure as Code templates
 
-Some convenient quick starts for use in cloud shells
+Some convenient quick starts for use in public cloud environments. Goal is to get a CNCF compliant k8s environment established with minimal complexity and ability to scale for production requirements.
 
-[![Open Azure Cloud Shell](https://aka.ms/deploytoazurebutton)](https://shell.azure.com/bash) (Open Azure Cloud Shell)
+
+## AWS quickstart
+
+### Launch a rancher cluster manager
+
+Deploy [`aws-cfn-rancher_k3s.yaml`](rancher_setup/aws-cfn-rancher_k3s.yaml) using [cloudformation](https://ap-southeast-2.console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/create) (Upload a template file). It should output a URL that you can visit to configure rancher, note on first run you can also setup a CNAME or equivalent dns alias, and reconfigure the primary control plane endpoint (it will use letsencrypt to automatically sort out SSL).
+
+The local cluster by default has 32GB of ram, but can be resized and used for testing reasonably easily. For production suitable deployments, see the next section.
+
+### Launch a workload cluster
+
+Deploy [`aws-cfn-rke2_cluster.yaml`](rancher_setup/aws-cfn-rke2_cluster.yaml) using cloudformation. Specify the registration url from creating a generic RKE2 cluster in rancher (use cilium networking, and configure kubelext extra args under advanced to be `max-pods=600` to enable high density configurations). Once imported can be managed from rancher cluster manager.
+
+*TODO: Setup default TCP load balancer, and make a separated node pool (ASG) from controlplane/etcd for workers for 'scaling', prompt user for both registration urls.*
+
+## Azure quickstart
+
+[Open Azure Cloud Shell](https://shell.azure.com/bash)
+
+Below content slightly dated, todo: move to simple templates + rancher guidance.
 
 ## Kuberenetes Platform as a Service
 
