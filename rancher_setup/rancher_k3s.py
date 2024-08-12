@@ -37,7 +37,7 @@ def main(rancher_fqdn, password):
     5. Installs Rancher
     """
     if rancher_fqdn == "sslip.io":
-        rancher_fqdn = run("dig @ns.sslip.io txt ip.sslip.io +short -4", shell=True, text=True).stdout.replace('"', "").strip() + ".sslip.io"
+        rancher_fqdn = run("dig @ns.sslip.io txt ip.sslip.io +short -4", shell=True, text=True, capture_output=True).stdout.replace('"', "").strip() + ".sslip.io"
     increase_limits()
     call('curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=v1.28 INSTALL_K3S_EXEC="--kubelet-arg=max-pods=900" sh -', shell=True)
     os.environ["KUBECONFIG"] = "/etc/rancher/k3s/k3s.yaml"
