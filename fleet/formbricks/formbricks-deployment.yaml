@@ -24,7 +24,7 @@ spec:
     spec:
       initContainers:
         - name: generate-nextauth-secret
-          image: busybox
+          image: alpine/openssl
           command: ['sh', '-c', 'openssl rand -base64 32 > /tmp/nextauth-secret/NEXTAUTH_SECRET']
           volumeMounts:
             - name: nextauth-secret
