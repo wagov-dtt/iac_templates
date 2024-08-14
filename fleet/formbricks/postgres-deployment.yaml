@@ -28,6 +28,8 @@ spec:
               value: postgres
           image: postgres:15-alpine
           name: postgres
+          ports:
+            - containerPort: 5432
           volumeMounts:
             - mountPath: /var/lib/postgresql/data
               name: postgres
@@ -36,3 +38,18 @@ spec:
         - name: postgres
           persistentVolumeClaim:
             claimName: postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    io.kompose.service: postgres
+spec:
+  type: ClusterIP  # This line is optional, as ClusterIP is the default
+  selector:
+    io.kompose.service: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
