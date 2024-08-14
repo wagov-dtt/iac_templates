@@ -22,6 +22,13 @@ spec:
       labels:
         io.kompose.service: formbricks
     spec:
+      initContainers:
+        - name: generate-nextauth-secret
+          image: busybox
+          command: ['sh', '-c', 'openssl rand -base64 32 > /tmp/nextauth-secret/NEXTAUTH_SECRET']
+          volumeMounts:
+            - name: nextauth-secret
+              mountPath: /tmp/nextauth-secret
       containers:
         - env:
             - name: DATABASE_URL
@@ -30,6 +37,11 @@ spec:
               value: "1"
             - name: PASSWORD_RESET_DISABLED
               value: "1"
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: nextauth-secret
+                  key: NEXTAUTH_SECRET
           image: ghcr.io/formbricks/formbricks:latest
           name: formbricks
           ports:
@@ -38,8 +50,21 @@ spec:
           volumeMounts:
             - mountPath: /home/nextjs/apps/web/uploads
               name: uploads
+            - name: nextauth-secret
+              mountPath: /tmp/nextauth-secret
+              readOnly: true
       restartPolicy: Always
       volumes:
         - name: uploads
           persistentVolumeClaim:
             claimName: uploads
+        - name: nextauth-secret
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nextauth-secret
+type: Opaque
+stringData:
+  NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
