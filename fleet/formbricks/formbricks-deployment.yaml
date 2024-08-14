@@ -25,7 +25,7 @@ spec:
       containers:
         - env:
             - name: DATABASE_URL
-              value: postgresql://postgres:postgres@postgres:5432/formbricks?schema=public
+              value: postgresql://postgres:postgres@postgres.formbricks-test.svc.cluster.local:5432/formbricks?schema=public
             - name: EMAIL_VERIFICATION_DISABLED
               value: "1"
             - name: PASSWORD_RESET_DISABLED
