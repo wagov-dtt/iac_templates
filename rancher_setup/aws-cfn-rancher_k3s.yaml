@@ -98,6 +98,9 @@ Resources:
       InstanceType: r6a.xlarge
       ImageId: !Ref ImageId
       IamInstanceProfile: !Ref SSMInstanceProfile
+      MetadataOptions:
+          HttpTokens: required
+          HttpEndpoint: enabled
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0

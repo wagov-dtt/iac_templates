@@ -23,7 +23,7 @@ vm.max_map_count = 262144
 
 def main(rancher_fqdn, password):
     """
-    Main function to install and configure K3s and Rancher.
+    Main function to install and configure K3s and Rancher. Based on https://ranchermanager.docs.rancher.com/getting-started/quick-start-guides/deploy-rancher-manager/helm-cli 
 
     Args:
         rancher_fqdn (str): Fully Qualified Domain Name for Rancher
