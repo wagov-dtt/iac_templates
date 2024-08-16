@@ -4,14 +4,17 @@ To get maximum price/performance ration, the below establishes an AKS cluster us
 
 ## Setup using AKS Automatic
 
-Create a cluster using [AKS Automatic](https://learn.microsoft.com/en-us/azure/aks/intro-aks-automatic) to get all the good defaults, then switch it to a standard sku (`Switch to Standard Cluster` in portal) and create a nodepool of local instances storage vms to enable longhorn spdk well.
+Create a cluster using [AKS Automatic](https://learn.microsoft.com/en-us/azure/aks/intro-aks-automatic)
 
-## Longhorn focused node pool
+## Install rancher
 
-Add node pool as follows:
+Ref [`azure_rancher_k3s.py`](azure_rancher_k3s.py).
 
-- 3 nodes
-- kubernetes.azure.com/os-sku:Ubuntu
-- node.kubernetes.io/instance-type:Standard_L8as_v3
-- kubernetes.azure.com/ebpf-dataplane:cilium
+
+
+## Setup longhorn
+
+## Backup to azure blob storage acct
+
+## Setup a second cluster
 

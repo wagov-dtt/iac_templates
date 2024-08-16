@@ -25,7 +25,7 @@ spec:
       initContainers:
         - name: generate-nextauth-secret
           image: alpine/openssl
-          command: ['sh', '-c', 'openssl rand -base64 64 > /tmp/nextauth-secret/NEXTAUTH_SECRET']
+          command: ['sh', '-c', 'openssl rand -hex 32 > /tmp/nextauth-secret/NEXTAUTH_SECRET']
           volumeMounts:
             - name: nextauth-secret
               mountPath: /tmp/nextauth-secret

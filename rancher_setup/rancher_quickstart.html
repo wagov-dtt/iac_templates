@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rancher Cloud Quickstarts</title>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/default.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/languages/yaml.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/languages/json.min.js"></script>
+    <style>
+        pre {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <main class="container" x-data="templateGenerator()">
+        <h1>Rancher Cloud Quickstarts</h1>
+        <div class="grid">
+            <div>
+                <h2>Input Parameters</h2>
+                <form @submit.prevent="generateTemplate">
+                    <label for="cloudProvider">
+                        Cloud Provider
+                        <select id="cloudProvider" x-model="cloudProvider">
+                            <option value="aws">AWS CloudFormation</option>
+                            <option value="azure">Azure ARM</option>
+                        </select>
+                    </label>
+                    
+                    <label for="vpcCidrBlock">
+                        VPC CIDR Block
+                        <input type="text" id="vpcCidrBlock" x-model="vpcCidrBlock" required>
+                    </label>
+                    
+                    <label for="controlPlaneCount">
+                        Control Plane Instance Count
+                        <input type="number" id="controlPlaneCount" x-model="controlPlaneCount" required>
+                    </label>
+                    
+                    <label for="workerCount">
+                        Worker Instance Count
+                        <input type="number" id="workerCount" x-model="workerCount" required>
+                    </label>
+                    
+                    <label for="instanceType">
+                        Instance Type
+                        <input type="text" id="instanceType" x-model="instanceType" required>
+                    </label>
+                    
+                    <label for="volumeSize">
+                        Volume Size (GB)
+                        <input type="number" id="volumeSize" x-model="volumeSize" required>
+                    </label>
+                    
+                    <button type="submit">Generate Template</button>
+                </form>
+            </div>
+            <div>
+                <h2>Generated Template</h2>
+                <pre><code x-bind:class="{'language-yaml': cloudProvider === 'aws', 'language-json': cloudProvider === 'azure'}" x-text="generatedTemplate"></code></pre>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function templateGenerator() {
+            return {
+                cloudProvider: 'aws',
+                vpcCidrBlock: '172.16.0.0/16',
+                controlPlaneCount: 3,
+                workerCount: 1,
+                instanceType: 'r6a.xlarge',
+                volumeSize: 400,
+                generatedTemplate: '',
+                
+                generateTemplate() {
+                    if (this.cloudProvider === 'aws') {
+                        this.generateCloudFormationTemplate();
+                    } else {
+                        this.generateAzureARMTemplate();
+                    }
+                    this.$nextTick(() => {
+                        hljs.highlightAll();
+                    });
+                },
+
+                generateCloudFormationTemplate() {
+                    this.generatedTemplate = `AWSTemplateFormatVersion: '2010-09-09'
+Description: Rancher manager with RKE2 control plane and worker nodes, plus
+  Network Load Balancer and aligned ports
+
+Parameters:
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/debian/release/bookworm/latest/amd64
+  VpcCidrBlock:
+    Type: String
+    Default: ${this.vpcCidrBlock}
+    Description: The CIDR block for the VPC (must be a /16 block)
+  ControlPlaneInstanceCount:
+    Type: Number
+    Default: ${this.controlPlaneCount}
+    Description: Desired number of control plane instances
+  WorkerInstanceCount:
+    Type: Number
+    Default: ${this.workerCount}
+    Description: Desired number of worker instances
+  InstanceType:
+    Type: String
+    Default: ${this.instanceType}
+    Description: EC2 instance type for all nodes
+  VolumeSize:
+    Type: Number
+    Default: ${this.volumeSize}
+    Description: Size of the root EBS volume in GB
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidrBlock
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub \${AWS::StackName}-VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      CidrBlock: !Select
+        - 0
+        - !Cidr
+          - !Ref VpcCidrBlock
+          - 3
+          - 12
+      MapPublicIpOnLaunch: true
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: RancherInstanceSecurityGroup
+      GroupDescription: Security group for Rancher and RKE2 nodes
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  ControlPlaneASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+      DesiredCapacity: !Ref ControlPlaneInstanceCount
+      MinSize: 3
+      MaxSize: 30
+      LaunchTemplate:
+        LaunchTemplateId: !Ref BaseLaunchTemplate
+        Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: !Sub \${AWS::StackName}-ControlPlane
+          PropagateAtLaunch: true
+
+  WorkerASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+      DesiredCapacity: !Ref WorkerInstanceCount
+      MinSize: 1
+      MaxSize: 300
+      LaunchTemplate:
+        LaunchTemplateId: !Ref BaseLaunchTemplate
+        Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: !Sub \${AWS::StackName}-Worker
+          PropagateAtLaunch: true
+
+  BaseLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref ImageId
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        SecurityGroupIds:
+          - !Ref InstanceSecurityGroup
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: !Ref VolumeSize
+              VolumeType: gp3
+              DeleteOnTermination: true
+
+Outputs:
+  VPCId:
+    Value: !Ref VPC
+  ControlPlaneASGName:
+    Description: Name of the Control Plane Auto Scaling Group
+    Value: !Ref ControlPlaneASG
+  WorkerASGName:
+    Description: Name of the Worker Auto Scaling Group
+    Value: !Ref WorkerASG`;
+                },
+
+                generateAzureARMTemplate() {
+                    this.generatedTemplate = JSON.stringify({
+                        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                        "contentVersion": "1.0.0.0",
+                        "parameters": {
+                            "vnetAddressPrefix": {
+                                "type": "string",
+                                "defaultValue": this.vpcCidrBlock
+                            },
+                            "controlPlaneCount": {
+                                "type": "int",
+                                "defaultValue": this.controlPlaneCount
+                            },
+                            "workerCount": {
+                                "type": "int",
+                                "defaultValue": this.workerCount
+                            },
+                            "vmSize": {
+                                "type": "string",
+                                "defaultValue": this.instanceType
+                            },
+                            "osDiskSizeGB": {
+                                "type": "int",
+                                "defaultValue": this.volumeSize
+                            }
+                        },
+                        "resources": [
+                            {
+                                "type": "Microsoft.Network/virtualNetworks",
+                                "apiVersion": "2020-06-01",
+                                "name": "[concat(resourceGroup().name, '-vnet')]",
+                                "location": "[resourceGroup().location]",
+                                "properties": {
+                                    "addressSpace": {
+                                        "addressPrefixes": [
+                                            "[parameters('vnetAddressPrefix')]"
+                                        ]
+                                    }
+                                }
+                            },
+                            {
+                                "type": "Microsoft.Compute/virtualMachineScaleSets",
+                                "apiVersion": "2020-06-01",
+                                "name": "controlPlaneScaleSet",
+                                "location": "[resourceGroup().location]",
+                                "sku": {
+                                    "name": "[parameters('vmSize')]",
+                                    "tier": "Standard",
+                                    "capacity": "[parameters('controlPlaneCount')]"
+                                },
+                                "properties": {
+                                    "overprovision": false,
+                                    "upgradePolicy": {
+                                        "mode": "Manual"
+                                    },
+                                    "virtualMachineProfile": {
+                                        "storageProfile": {
+                                            "osDisk": {
+                                                "createOption": "FromImage",
+                                                "managedDisk": {
+                                                    "storageAccountType": "Premium_LRS"
+                                                },
+                                                "diskSizeGB": "[parameters('osDiskSizeGB')]"
+                                            }
+                                        },
+                                        "osProfile": {
+                                            "computerNamePrefix": "controlplane",
+                                            "adminUsername": "azureuser"
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                "type": "Microsoft.Compute/virtualMachineScaleSets",
+                                "apiVersion": "2020-06-01",
+                                "name": "workerScaleSet",
+                                "location": "[resourceGroup().location]",
+                                "sku": {
+                                    "name": "[parameters('vmSize')]",
+                                    "tier": "Standard",
+                                    "capacity": "[parameters('workerCount')]"
+                                },
+                                "properties": {
+                                    "overprovision": false,
+                                    "upgradePolicy": {
+                                        "mode": "Manual"
+                                    },
+                                    "virtualMachineProfile": {
+                                        "storageProfile": {
+                                            "osDisk": {
+                                                "createOption": "FromImage",
+                                                "managedDisk": {
+                                                    "storageAccountType": "Premium_LRS"
+                                                },
+                                                "diskSizeGB": "[parameters('osDiskSizeGB')]"
+                                            }
+                                        },
+                                        "osProfile": {
+                                            "computerNamePrefix": "worker",
+                                            "adminUsername": "azureuser"
+                                        }
+                                    }
+                                }
+                            }
+                        ],
+                        "outputs": {
+                            "vnetId": {
+                                "type": "string",
+                                "value": "[resourceId('Microsoft.Network/virtualNetworks', concat(resourceGroup().name, '-vnet'))]"
+                            },
+                            "controlPlaneScaleSetName": {
+                                "type": "string",
+                                "value": "controlPlaneScaleSet"
+                            },
+                            "workerScaleSetName": {
+                                "type": "string",
+                                "value": "workerScaleSet"
+                            }
+                        }
+                    }, null, 2);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
