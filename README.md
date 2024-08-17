@@ -7,9 +7,7 @@ Some convenient quick starts for use in public cloud environments. Goal is to ge
 
 ### Launch a rancher cluster + manager
 
-Deploy [`aws-cfn-rancher_k3s.yaml`](rancher_setup/aws-cfn-rancher.yaml) using [cloudformation](https://ap-southeast-2.console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/create) (Upload a template file). It should output a URL that you can visit to configure rancher, note on first run you can also setup a CNAME or equivalent dns alias, and reconfigure the primary control plane endpoint (it will use letsencrypt to automatically sort out SSL).
-
-The local cluster by default has 32GB of ram, but can be resized and used for testing reasonably easily. For production suitable deployments, see the next section.
+Deploy a generated [cloud template](https://wagov-dtt.github.io/iac_templates/rancher_setup/rancher_quickstart.html) using [cloudformation](https://ap-southeast-2.console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/create) (Upload a template file). It should output a URL that you can visit to configure rancher, note on first run you can also setup a CNAME or equivalent dns alias, and reconfigure the primary control plane endpoint (it will use letsencrypt ACME http-challenge to automatically sort out SSL).
 
 ## Azure quickstart
 
