@@ -64,9 +64,9 @@
             <form>
                 <label for="nodeSize">Node Size:</label>
                 <select id="nodeSize" x-model="formData.nodeSize">
-                    <option value="2">Small (2 cores, 16G mem, 160G disk)</option>
-                    <option value="4">Medium (4 cores, 32G mem, 320G disk)</option>
-                    <option value="8">Large (8 cores, 64G mem, 640G disk)</option>
+                    <option value="4">Small (4 cores, 32G mem, 400G disk)</option>
+                    <option value="8">Medium (8 cores, 64G mem, 800G disk)</option>
+                    <option value="16">Large (16 cores, 128G mem, 1.6T disk)</option>
                 </select><br>
                 <label for="workerCount">Workers:</label>
                 <input type="number" id="workerCount" x-model.number="formData.workerCount" min="0" max="300"
@@ -100,7 +100,7 @@ Volume Capacity: <span x-text="totalVolumes"></span>G</code>
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('rancherQuickstart', () => ({
-                formData: { ipSubnet: '172.16.0.0/16', nodeSize: '2', workerCount: 0 },
+                formData: { ipSubnet: '172.16.0.0/16', nodeSize: '4', workerCount: 0 },
                 get cfOutput() { return this.generateCloudFormationYAML(this); },
                 get armOutput() { return this.generateAzureARMJSON(this); },
                 get highlightedCfOutput() { return hljs.highlight(this.cfOutput, { language: 'yaml' }).value; },
@@ -108,21 +108,27 @@ Volume Capacity: <span x-text="totalVolumes"></span>G</code>
                 get totalNodes() { return 3 + Math.max(0, Math.min(300, this.formData.workerCount || 0)); },
                 get totalCPU() { return this.totalNodes * Math.floor(this.formData.nodeSize); },
                 get totalMemory() { return this.totalCPU * 8; },
-                get totalDisk() { return this.totalCPU * 80; },
+                get totalDisk() { return this.totalCPU * 100; },
                 get totalVolumes() { return Math.floor(this.totalDisk * 0.8 / 3); },
-                get awsInstance() { return {2: 'r6a.large', 4: 'r6a.xlarge', 8: 'r6a.2xlarge'}[this.formData.nodeSize] },
-                get azureInstance() { return {2: 'Standard_E2as_v6', 4: 'Standard_E4as_v6', 8: 'Standard_E8as_v6'}[this.formData.nodeSize] },
+                get awsInstance() { return {4: 'r6a.xlarge', 8: 'r6a.2xlarge', 16: 'r6a.4xlarge'}[this.formData.nodeSize] },
+                get azureInstance() { return {4: 'Standard_E4as_v6', 8: 'Standard_E8as_v6', 16: 'Standard_E16as_v6'}[this.formData.nodeSize] },
                 generateCloudFormationYAML: (data) => `AWSTemplateFormatVersion: '2010-09-09'
 Description: Rancher manager with RKE2 control plane and worker nodes, plus
-  Network Load Balancer and aligned ports
+  Network Load Balancer for control plane nodes
 
 Parameters:
   ImageId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/debian/release/bookworm/latest/amd64
+  InstanceType:
+    Type: String
+    Default: ${data.awsInstance}
+  VolumeSize:
+    Type: Number
+    Default: ${data.formData.nodeSize * 100}
   ManagerBootstrap:
     Type: String
-    Default: curl -sL https://raw.githubusercontent.com/wagov-dtt/iac_templates/main/rancher_k3s.py | python3 - <rancher_fqdn> <password>
+    Default: curl -sL https://wagov-dtt.github.io/iac_templates/rancher_setup/rancher_k3s.py | python3 - <rancher_fqdn> <password>
     Description: Bootstrap cmd for rancher manager
   RegisterControlPlane:
     Type: String
@@ -132,12 +138,20 @@ Parameters:
     Type: String
     Default: echo "copy from custom rke2 cluster in rancher manager"
     Description: Registration command for worker nodes
+  WorkerCount:
+    Type: Number
+    Default: ${data.formData.workerCount}
+  VPCSubnet:
+    Type: String
+    Description: VPC Subnet
+    Default: ${data.formData.ipSubnet}
+
 
 Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: ${data.formData.ipSubnet}
+      CidrBlock: !Ref VPCSubnet
       EnableDnsHostnames: true
       EnableDnsSupport: true
       Tags:
@@ -156,43 +170,22 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select
-        - 0
-        - !GetAZs ''
-      CidrBlock: !Select
-        - 0
-        - !Cidr
-          - ${data.formData.ipSubnet}
-          - 3
-          - 12
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Select [ 0, !Cidr [ !Ref VPCSubnet, 3, 12 ] ]
       MapPublicIpOnLaunch: true
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select
-        - 1
-        - !GetAZs ''
-      CidrBlock: !Select
-        - 1
-        - !Cidr
-          - ${data.formData.ipSubnet}
-          - 3
-          - 12
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !Select [ 1, !Cidr [ !Ref VPCSubnet, 3, 12 ] ]
       MapPublicIpOnLaunch: true
   PublicSubnet3:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select
-        - 2
-        - !GetAZs ''
-      CidrBlock: !Select
-        - 2
-        - !Cidr
-          - ${data.formData.ipSubnet}
-          - 3
-          - 12
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      CidrBlock: !Select [ 2, !Cidr [ !Ref VPCSubnet, 3, 12 ] ]
       MapPublicIpOnLaunch: true
 
   PublicRouteTable:
@@ -229,24 +222,37 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service:
-                - ec2.amazonaws.com
-            Action:
-              - sts:AssumeRole
+              Service: [ ec2.amazonaws.com ]
+            Action: [ sts:AssumeRole ]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      Roles:
-        - !Ref InstanceRole
+      Roles: [ !Ref InstanceRole ]
 
-  InstanceSecurityGroup:
+  ManagerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: RancherInstanceSecurityGroup
-      GroupDescription: Security group for Rancher and RKE2 nodes
+      GroupName: RancherManagerSecurityGroup
+      GroupDescription: Security group for Rancher Manager
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  ControlPlaneSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: RancherControlPlaneSecurityGroup
+      GroupDescription: Security group for Rancher Control Plane nodes
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -256,6 +262,13 @@ Resources:
           FromPort: 443
           ToPort: 443
           SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+      VpcId: !Ref VPC
+
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: RancherWorkerSecurityGroup
+      GroupDescription: Security group for Rancher Worker nodes
       VpcId: !Ref VPC
 
   LoadBalancerSecurityGroup:
@@ -279,27 +292,26 @@ Resources:
     Properties:
       LaunchTemplateData:
         ImageId: !Ref ImageId
-        InstanceType: ${data.awsInstance}
+        InstanceType: !Ref InstanceType
         IamInstanceProfile:
           Arn: !GetAtt InstanceProfile.Arn
-        SecurityGroupIds:
-          - !Ref InstanceSecurityGroup
         MetadataOptions:
           HttpTokens: required
           HttpEndpoint: enabled
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
             Ebs:
-              VolumeSize: 400
+              VolumeSize: !Ref VolumeSize
               VolumeType: gp3
               DeleteOnTermination: true
-        UserData: !Base64
-          Fn::Sub: |
-            #!/bin/bash
-            mkdir /tmp/ssm && cd /tmp/ssm
-            wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
-            dpkg -i amazon-ssm-agent.deb && systemctl enable amazon-ssm-agent
-            apt-get update && apt-get install -y git open-iscsi dnsutils
+        UserData:
+          Fn::Base64:
+            !Sub |
+              #!/bin/bash
+              mkdir /tmp/ssm && cd /tmp/ssm
+              wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
+              dpkg -i amazon-ssm-agent.deb && systemctl enable amazon-ssm-agent
+              apt-get update && apt-get install -y git open-iscsi dnsutils
 
   RancherManagerInstance:
     Type: AWS::EC2::Instance
@@ -308,6 +320,7 @@ Resources:
         LaunchTemplateId: !Ref BaseLaunchTemplate
         Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
       SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds: [ !Ref ManagerSecurityGroup ]
       Tags:
         - Key: Name
           Value: !Sub \${AWS::StackName}-Manager
@@ -315,18 +328,14 @@ Resources:
   ControlPlaneASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      VPCZoneIdentifier:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
-        - !Ref PublicSubnet3
+      VPCZoneIdentifier: [ !Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3 ]
       DesiredCapacity: 3
       MinSize: 3
       MaxSize: 30
       LaunchTemplate:
         LaunchTemplateId: !Ref BaseLaunchTemplate
         Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
-      TargetGroupARNs:
-        - !Ref ControlPlaneTargetGroup
+      TargetGroupARNs: [ !Ref ControlPlaneTargetGroup ]
       Tags:
         - Key: Name
           Value: !Sub \${AWS::StackName}-ControlPlane
@@ -338,11 +347,8 @@ Resources:
   WorkerASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      VPCZoneIdentifier:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
-        - !Ref PublicSubnet3
-      DesiredCapacity: ${data.formData.workerCount}
+      VPCZoneIdentifier: [ !Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3 ]
+      DesiredCapacity: !Ref WorkerCount
       MinSize: 0
       MaxSize: 300
       LaunchTemplate:
@@ -362,12 +368,10 @@ Resources:
       Name: AWS-RunShellScript
       AssociationName: !Sub \${AWS::StackName}-Manager-Config
       Targets:
-        - Key: tag:Name
-          Values:
-            - !Sub \${AWS::StackName}-Manager
+        - Key: InstanceIds
+          Values: [ !Ref RancherManagerInstance ]
       Parameters:
-        commands:
-          - echo "Bootstrapping manager"
+        commands: 
           - !Ref ManagerBootstrap
 
   ControlPlaneSSMAssociation:
@@ -377,11 +381,9 @@ Resources:
       AssociationName: !Sub \${AWS::StackName}-ControlPlane-Config
       Targets:
         - Key: tag:NodeType
-          Values:
-            - ControlPlane
+          Values: [ ControlPlane ]
       Parameters:
-        commands:
-          - echo "Running control plane specific configuration"
+        commands: 
           - !Ref RegisterControlPlane
 
   WorkerSSMAssociation:
@@ -391,11 +393,9 @@ Resources:
       AssociationName: !Sub \${AWS::StackName}-Worker-Config
       Targets:
         - Key: tag:NodeType
-          Values:
-            - Worker
+          Values: [ Worker ]
       Parameters:
-        commands:
-          - echo "Running worker node specific configuration"
+        commands: 
           - !Ref RegisterWorker
 
   NetworkLoadBalancer:
@@ -403,10 +403,7 @@ Resources:
     Properties:
       Type: network
       Scheme: internet-facing
-      Subnets:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
-        - !Ref PublicSubnet3
+      Subnets: [ !Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3 ]
 
   ControlPlaneTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -439,45 +436,15 @@ Resources:
       Port: 443
       Protocol: TCP
 
-  RancherManagerTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub \${AWS::StackName}-Manager-TG
-      Port: 80
-      Protocol: TCP
-      VpcId: !Ref VPC
-      TargetType: instance
-      HealthCheckProtocol: TCP
-      HealthCheckPort: traffic-port
-      Targets:
-        - Id: !Ref RancherManagerInstance
-
-  RancherManagerListener80:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref RancherManagerTargetGroup
-      LoadBalancerArn: !Ref NetworkLoadBalancer
-      Port: 80
-      Protocol: TCP
-
-  RancherManagerListener443:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref RancherManagerTargetGroup
-      LoadBalancerArn: !Ref NetworkLoadBalancer
-      Port: 443
-      Protocol: TCP
-
 Outputs:
   VPCId:
     Value: !Ref VPC
   RancherManagerInstanceId:
     Description: ID of the Rancher Manager EC2 instance
     Value: !Ref RancherManagerInstance
+  RancherManagerPublicIP:
+    Description: Public IP of the Rancher Manager EC2 instance
+    Value: !GetAtt RancherManagerInstance.PublicIp
   ControlPlaneASGName:
     Description: Name of the Control Plane Auto Scaling Group
     Value: !Ref ControlPlaneASG
@@ -486,10 +453,7 @@ Outputs:
     Value: !Ref WorkerASG
   NetworkLoadBalancerDNS:
     Description: DNS name of the Network Load Balancer
-    Value: !GetAtt NetworkLoadBalancer.DNSName
-  RancherManagerEndpoint:
-    Description: Rancher Manager endpoint
-    Value: !Sub https://\${NetworkLoadBalancer.DNSName}`,
+    Value: !GetAtt NetworkLoadBalancer.DNSName`,
                 generateAzureARMJSON: (data) => JSON.stringify({
                     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
                     "contentVersion": "1.0.0.0",
