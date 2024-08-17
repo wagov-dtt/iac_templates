@@ -1,96 +1,118 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rancher Cloud Quickstarts</title>
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js" defer></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/default.min.css">
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/languages/yaml.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/languages/json.min.js"></script>
+    <title>Rancher QuickStart</title>
+    <link rel="stylesheet" href="https://unpkg.com/sakura.css/css/sakura.css">
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <link rel="stylesheet" href="https://unpkg.com/@highlightjs/cdn-assets/styles/default.min.css">
+    <script src="https://unpkg.com/@highlightjs/cdn-assets/highlight.min.js"></script>
     <style>
+        body {
+            max-width: 90vw;
+        }
+
         pre {
-            max-height: 600px;
-            overflow-y: auto;
+            font-size: 0.8rem;
+            position: relative;
+            overflow: auto;
+            max-height: 60vh;
+        }
+
+        pre .copy-button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        pre:hover .copy-button {
+            opacity: 1;
+        }
+
+        pre:hover .copy-button:active {
+            opacity: 0.5;
+        }
+
+        .row {
+            display: flex;
+        }
+
+        label {
+            float: left;
+        }
+
+        form,
+        .column,
+        .cluster-summary {
+            flex: 50%;
+            padding: 0.5em;
+            overflow: auto;
         }
     </style>
 </head>
+
 <body>
-    <main class="container" x-data="templateGenerator()">
-        <h1>Rancher Cloud Quickstarts</h1>
-        <div class="grid">
-            <div>
-                <h2>Input Parameters</h2>
-                <form @submit.prevent="generateTemplate">
-                    <label for="cloudProvider">
-                        Cloud Provider
-                        <select id="cloudProvider" x-model="cloudProvider">
-                            <option value="aws">AWS CloudFormation</option>
-                            <option value="azure">Azure ARM</option>
-                        </select>
-                    </label>
-                    
-                    <label for="vpcCidrBlock">
-                        VPC CIDR Block
-                        <input type="text" id="vpcCidrBlock" x-model="vpcCidrBlock" required>
-                    </label>
-                    
-                    <label for="controlPlaneCount">
-                        Control Plane Instance Count
-                        <input type="number" id="controlPlaneCount" x-model="controlPlaneCount" required>
-                    </label>
-                    
-                    <label for="workerCount">
-                        Worker Instance Count
-                        <input type="number" id="workerCount" x-model="workerCount" required>
-                    </label>
-                    
-                    <label for="instanceType">
-                        Instance Type
-                        <input type="text" id="instanceType" x-model="instanceType" required>
-                    </label>
-                    
-                    <label for="volumeSize">
-                        Volume Size (GB)
-                        <input type="number" id="volumeSize" x-model="volumeSize" required>
-                    </label>
-                    
-                    <button type="submit">Generate Template</button>
-                </form>
-            </div>
-            <div>
-                <h2>Generated Template</h2>
-                <pre><code x-bind:class="{'language-yaml': cloudProvider === 'aws', 'language-json': cloudProvider === 'azure'}" x-text="generatedTemplate"></code></pre>
+    <h1>Rancher QuickStart</h1>
+    <p>Secure, fault-tolerant Kubernetes clusters managed by Rancher on Azure/AWS with eBPF networking (Cilium) and
+        in-cluster storage (Longhorn)</p>
+    <div x-data="rancherQuickstart">
+        <div class="row">
+            <form>
+                <label for="nodeSize">Node Size:</label>
+                <select id="nodeSize" x-model="formData.nodeSize">
+                    <option value="2">Small (2 cores, 16G mem, 160G disk)</option>
+                    <option value="4">Medium (4 cores, 32G mem, 320G disk)</option>
+                    <option value="8">Large (8 cores, 64G mem, 640G disk)</option>
+                </select><br>
+                <label for="workerCount">Workers:</label>
+                <input type="number" id="workerCount" x-model.number="formData.workerCount" min="0" max="300"
+                    step="1"><br>
+                <label for="ipSubnet">Subnet:</label>
+                <input type="text" id="ipSubnet" x-model="formData.ipSubnet" required><br>
+                <code>Manager: 1 vm (fixed)<br>Control Plane: 3 nodes (fixed)</code>
+            </form>
+            <div class="cluster-summary">
+                <strong>Cluster Summary</strong><code>
+AWS: <span x-text="awsInstance"></span>
+Azure: <span x-text="azureInstance"></span>
+Total Nodes: <span x-text="totalNodes"></span>
+Total CPU Cores: <span x-text="totalCPU"></span>
+Total Memory: <span x-text="totalMemory"></span>G
+Total Disk Size: <span x-text="totalDisk"></span>G
+Volume Capacity: <span x-text="totalVolumes"></span>G</code>
             </div>
         </div>
-    </main>
-
+        <div class="row">
+            <div class="column">
+                <h4>CloudFormation (yaml)</h4>
+                <pre><button @click="copyToClipboard($refs.cfOutput)" class="copy-button">Copy</button><code x-ref="cfOutput" class="language-yaml" x-html="highlightedCfOutput"></code></pre>
+            </div>
+            <div class="column">
+                <h4>Azure Resource Manager (json)</h4>
+                <pre><button @click="copyToClipboard($refs.armOutput)" class="copy-button">Copy</button><code x-ref="armOutput" class="language-json" x-html="highlightedArmOutput"></code></pre>
+            </div>
+        </div>
+    </div>
     <script>
-        function templateGenerator() {
-            return {
-                cloudProvider: 'aws',
-                vpcCidrBlock: '172.16.0.0/16',
-                controlPlaneCount: 3,
-                workerCount: 1,
-                instanceType: 'r6a.xlarge',
-                volumeSize: 400,
-                generatedTemplate: '',
-                
-                generateTemplate() {
-                    if (this.cloudProvider === 'aws') {
-                        this.generateCloudFormationTemplate();
-                    } else {
-                        this.generateAzureARMTemplate();
-                    }
-                    this.$nextTick(() => {
-                        hljs.highlightAll();
-                    });
-                },
-
-                generateCloudFormationTemplate() {
-                    this.generatedTemplate = `AWSTemplateFormatVersion: '2010-09-09'
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('rancherQuickstart', () => ({
+                formData: { ipSubnet: '172.16.0.0/16', nodeSize: '2', workerCount: 0 },
+                get cfOutput() { return this.generateCloudFormationYAML(this); },
+                get armOutput() { return this.generateAzureARMJSON(this); },
+                get highlightedCfOutput() { return hljs.highlight(this.cfOutput, { language: 'yaml' }).value; },
+                get highlightedArmOutput() { return hljs.highlight(this.armOutput, { language: 'json' }).value; },
+                get totalNodes() { return 3 + Math.max(0, Math.min(300, this.formData.workerCount || 0)); },
+                get totalCPU() { return this.totalNodes * Math.floor(this.formData.nodeSize); },
+                get totalMemory() { return this.totalCPU * 8; },
+                get totalDisk() { return this.totalCPU * 80; },
+                get totalVolumes() { return Math.floor(this.totalDisk * 0.8 / 3); },
+                get awsInstance() { return {2: 'r6a.large', 4: 'r6a.xlarge', 8: 'r6a.2xlarge'}[this.formData.nodeSize] },
+                get azureInstance() { return {2: 'Standard_E2as_v6', 4: 'Standard_E4as_v6', 8: 'Standard_E8as_v6'}[this.formData.nodeSize] },
+                generateCloudFormationYAML: (data) => `AWSTemplateFormatVersion: '2010-09-09'
 Description: Rancher manager with RKE2 control plane and worker nodes, plus
   Network Load Balancer and aligned ports
 
@@ -98,32 +120,24 @@ Parameters:
   ImageId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/debian/release/bookworm/latest/amd64
-  VpcCidrBlock:
+  ManagerBootstrap:
     Type: String
-    Default: ${this.vpcCidrBlock}
-    Description: The CIDR block for the VPC (must be a /16 block)
-  ControlPlaneInstanceCount:
-    Type: Number
-    Default: ${this.controlPlaneCount}
-    Description: Desired number of control plane instances
-  WorkerInstanceCount:
-    Type: Number
-    Default: ${this.workerCount}
-    Description: Desired number of worker instances
-  InstanceType:
+    Default: curl -sL https://raw.githubusercontent.com/wagov-dtt/iac_templates/main/rancher_k3s.py | python3 - <rancher_fqdn> <password>
+    Description: Bootstrap cmd for rancher manager
+  RegisterControlPlane:
     Type: String
-    Default: ${this.instanceType}
-    Description: EC2 instance type for all nodes
-  VolumeSize:
-    Type: Number
-    Default: ${this.volumeSize}
-    Description: Size of the root EBS volume in GB
+    Default: echo "copy from custom rke2 cluster in rancher manager"
+    Description: Registration command for control plane nodes
+  RegisterWorker:
+    Type: String
+    Default: echo "copy from custom rke2 cluster in rancher manager"
+    Description: Registration command for worker nodes
 
 Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: !Ref VpcCidrBlock
+      CidrBlock: ${data.formData.ipSubnet}
       EnableDnsHostnames: true
       EnableDnsSupport: true
       Tags:
@@ -148,7 +162,35 @@ Resources:
       CidrBlock: !Select
         - 0
         - !Cidr
-          - !Ref VpcCidrBlock
+          - ${data.formData.ipSubnet}
+          - 3
+          - 12
+      MapPublicIpOnLaunch: true
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ''
+      CidrBlock: !Select
+        - 1
+        - !Cidr
+          - ${data.formData.ipSubnet}
+          - 3
+          - 12
+      MapPublicIpOnLaunch: true
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select
+        - 2
+        - !GetAZs ''
+      CidrBlock: !Select
+        - 2
+        - !Cidr
+          - ${data.formData.ipSubnet}
           - 3
           - 12
       MapPublicIpOnLaunch: true
@@ -163,6 +205,21 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
+  PublicSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnet3RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet3
+      RouteTableId: !Ref PublicRouteTable
 
   InstanceRole:
     Type: AWS::IAM::Role
@@ -194,6 +251,22 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+      VpcId: !Ref VPC
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: RancherLBSecurityGroup
+      GroupDescription: Security group for Rancher Load Balancer
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 443
@@ -201,20 +274,65 @@ Resources:
           CidrIp: 0.0.0.0/0
       VpcId: !Ref VPC
 
+  BaseLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref ImageId
+        InstanceType: ${data.awsInstance}
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        SecurityGroupIds:
+          - !Ref InstanceSecurityGroup
+        MetadataOptions:
+          HttpTokens: required
+          HttpEndpoint: enabled
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 400
+              VolumeType: gp3
+              DeleteOnTermination: true
+        UserData: !Base64
+          Fn::Sub: |
+            #!/bin/bash
+            mkdir /tmp/ssm && cd /tmp/ssm
+            wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
+            dpkg -i amazon-ssm-agent.deb && systemctl enable amazon-ssm-agent
+            apt-get update && apt-get install -y git open-iscsi dnsutils
+
+  RancherManagerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref BaseLaunchTemplate
+        Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub \${AWS::StackName}-Manager
+
   ControlPlaneASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier:
         - !Ref PublicSubnet1
-      DesiredCapacity: !Ref ControlPlaneInstanceCount
+        - !Ref PublicSubnet2
+        - !Ref PublicSubnet3
+      DesiredCapacity: 3
       MinSize: 3
       MaxSize: 30
       LaunchTemplate:
         LaunchTemplateId: !Ref BaseLaunchTemplate
         Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
+      TargetGroupARNs:
+        - !Ref ControlPlaneTargetGroup
       Tags:
         - Key: Name
           Value: !Sub \${AWS::StackName}-ControlPlane
+          PropagateAtLaunch: true
+        - Key: NodeType
+          Value: ControlPlane
           PropagateAtLaunch: true
 
   WorkerASG:
@@ -222,8 +340,10 @@ Resources:
     Properties:
       VPCZoneIdentifier:
         - !Ref PublicSubnet1
-      DesiredCapacity: !Ref WorkerInstanceCount
-      MinSize: 1
+        - !Ref PublicSubnet2
+        - !Ref PublicSubnet3
+      DesiredCapacity: ${data.formData.workerCount}
+      MinSize: 0
       MaxSize: 300
       LaunchTemplate:
         LaunchTemplateId: !Ref BaseLaunchTemplate
@@ -232,158 +352,163 @@ Resources:
         - Key: Name
           Value: !Sub \${AWS::StackName}-Worker
           PropagateAtLaunch: true
+        - Key: NodeType
+          Value: Worker
+          PropagateAtLaunch: true
 
-  BaseLaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
+  ManagerSSMAssociation:
+    Type: AWS::SSM::Association
     Properties:
-      LaunchTemplateData:
-        ImageId: !Ref ImageId
-        InstanceType: !Ref InstanceType
-        IamInstanceProfile:
-          Arn: !GetAtt InstanceProfile.Arn
-        SecurityGroupIds:
-          - !Ref InstanceSecurityGroup
-        BlockDeviceMappings:
-          - DeviceName: /dev/xvda
-            Ebs:
-              VolumeSize: !Ref VolumeSize
-              VolumeType: gp3
-              DeleteOnTermination: true
+      Name: AWS-RunShellScript
+      AssociationName: !Sub \${AWS::StackName}-Manager-Config
+      Targets:
+        - Key: tag:Name
+          Values:
+            - !Sub \${AWS::StackName}-Manager
+      Parameters:
+        commands:
+          - echo "Bootstrapping manager"
+          - !Ref ManagerBootstrap
+
+  ControlPlaneSSMAssociation:
+    Type: AWS::SSM::Association
+    Properties:
+      Name: AWS-RunShellScript
+      AssociationName: !Sub \${AWS::StackName}-ControlPlane-Config
+      Targets:
+        - Key: tag:NodeType
+          Values:
+            - ControlPlane
+      Parameters:
+        commands:
+          - echo "Running control plane specific configuration"
+          - !Ref RegisterControlPlane
+
+  WorkerSSMAssociation:
+    Type: AWS::SSM::Association
+    Properties:
+      Name: AWS-RunShellScript
+      AssociationName: !Sub \${AWS::StackName}-Worker-Config
+      Targets:
+        - Key: tag:NodeType
+          Values:
+            - Worker
+      Parameters:
+        commands:
+          - echo "Running worker node specific configuration"
+          - !Ref RegisterWorker
+
+  NetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: network
+      Scheme: internet-facing
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+        - !Ref PublicSubnet3
+
+  ControlPlaneTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub \${AWS::StackName}-ControlPlane-TG
+      Port: 80
+      Protocol: TCP
+      VpcId: !Ref VPC
+      TargetType: instance
+      HealthCheckProtocol: TCP
+      HealthCheckPort: traffic-port
+
+  ControlPlaneListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ControlPlaneTargetGroup
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: 80
+      Protocol: TCP
+
+  ControlPlaneListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ControlPlaneTargetGroup
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: 443
+      Protocol: TCP
+
+  RancherManagerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub \${AWS::StackName}-Manager-TG
+      Port: 80
+      Protocol: TCP
+      VpcId: !Ref VPC
+      TargetType: instance
+      HealthCheckProtocol: TCP
+      HealthCheckPort: traffic-port
+      Targets:
+        - Id: !Ref RancherManagerInstance
+
+  RancherManagerListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref RancherManagerTargetGroup
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: 80
+      Protocol: TCP
+
+  RancherManagerListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref RancherManagerTargetGroup
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: 443
+      Protocol: TCP
 
 Outputs:
   VPCId:
     Value: !Ref VPC
+  RancherManagerInstanceId:
+    Description: ID of the Rancher Manager EC2 instance
+    Value: !Ref RancherManagerInstance
   ControlPlaneASGName:
     Description: Name of the Control Plane Auto Scaling Group
     Value: !Ref ControlPlaneASG
   WorkerASGName:
     Description: Name of the Worker Auto Scaling Group
-    Value: !Ref WorkerASG`;
-                },
-
-                generateAzureARMTemplate() {
-                    this.generatedTemplate = JSON.stringify({
-                        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                        "contentVersion": "1.0.0.0",
-                        "parameters": {
-                            "vnetAddressPrefix": {
-                                "type": "string",
-                                "defaultValue": this.vpcCidrBlock
-                            },
-                            "controlPlaneCount": {
-                                "type": "int",
-                                "defaultValue": this.controlPlaneCount
-                            },
-                            "workerCount": {
-                                "type": "int",
-                                "defaultValue": this.workerCount
-                            },
-                            "vmSize": {
-                                "type": "string",
-                                "defaultValue": this.instanceType
-                            },
-                            "osDiskSizeGB": {
-                                "type": "int",
-                                "defaultValue": this.volumeSize
-                            }
-                        },
-                        "resources": [
-                            {
-                                "type": "Microsoft.Network/virtualNetworks",
-                                "apiVersion": "2020-06-01",
-                                "name": "[concat(resourceGroup().name, '-vnet')]",
-                                "location": "[resourceGroup().location]",
-                                "properties": {
-                                    "addressSpace": {
-                                        "addressPrefixes": [
-                                            "[parameters('vnetAddressPrefix')]"
-                                        ]
-                                    }
-                                }
-                            },
-                            {
-                                "type": "Microsoft.Compute/virtualMachineScaleSets",
-                                "apiVersion": "2020-06-01",
-                                "name": "controlPlaneScaleSet",
-                                "location": "[resourceGroup().location]",
-                                "sku": {
-                                    "name": "[parameters('vmSize')]",
-                                    "tier": "Standard",
-                                    "capacity": "[parameters('controlPlaneCount')]"
-                                },
-                                "properties": {
-                                    "overprovision": false,
-                                    "upgradePolicy": {
-                                        "mode": "Manual"
-                                    },
-                                    "virtualMachineProfile": {
-                                        "storageProfile": {
-                                            "osDisk": {
-                                                "createOption": "FromImage",
-                                                "managedDisk": {
-                                                    "storageAccountType": "Premium_LRS"
-                                                },
-                                                "diskSizeGB": "[parameters('osDiskSizeGB')]"
-                                            }
-                                        },
-                                        "osProfile": {
-                                            "computerNamePrefix": "controlplane",
-                                            "adminUsername": "azureuser"
-                                        }
-                                    }
-                                }
-                            },
-                            {
-                                "type": "Microsoft.Compute/virtualMachineScaleSets",
-                                "apiVersion": "2020-06-01",
-                                "name": "workerScaleSet",
-                                "location": "[resourceGroup().location]",
-                                "sku": {
-                                    "name": "[parameters('vmSize')]",
-                                    "tier": "Standard",
-                                    "capacity": "[parameters('workerCount')]"
-                                },
-                                "properties": {
-                                    "overprovision": false,
-                                    "upgradePolicy": {
-                                        "mode": "Manual"
-                                    },
-                                    "virtualMachineProfile": {
-                                        "storageProfile": {
-                                            "osDisk": {
-                                                "createOption": "FromImage",
-                                                "managedDisk": {
-                                                    "storageAccountType": "Premium_LRS"
-                                                },
-                                                "diskSizeGB": "[parameters('osDiskSizeGB')]"
-                                            }
-                                        },
-                                        "osProfile": {
-                                            "computerNamePrefix": "worker",
-                                            "adminUsername": "azureuser"
-                                        }
-                                    }
-                                }
-                            }
-                        ],
-                        "outputs": {
-                            "vnetId": {
-                                "type": "string",
-                                "value": "[resourceId('Microsoft.Network/virtualNetworks', concat(resourceGroup().name, '-vnet'))]"
-                            },
-                            "controlPlaneScaleSetName": {
-                                "type": "string",
-                                "value": "controlPlaneScaleSet"
-                            },
-                            "workerScaleSetName": {
-                                "type": "string",
-                                "value": "workerScaleSet"
-                            }
-                        }
-                    }, null, 2);
-                }
-            }
-        }
+    Value: !Ref WorkerASG
+  NetworkLoadBalancerDNS:
+    Description: DNS name of the Network Load Balancer
+    Value: !GetAtt NetworkLoadBalancer.DNSName
+  RancherManagerEndpoint:
+    Description: Rancher Manager endpoint
+    Value: !Sub https://\${NetworkLoadBalancer.DNSName}`,
+                generateAzureARMJSON: (data) => JSON.stringify({
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        ipSubnet: { value: data.formData.ipSubnet },
+                        instance: { value: data.azureInstance },
+                    },
+                    "resources": [{
+                        "type": "Microsoft.Compute/virtualMachines",
+                        "name": "RancherCluster",
+                        "apiVersion": "2021-03-01",
+                        "location": "[resourceGroup().location]",
+                        "properties": {}
+                    }]
+                }, null, 2),
+                copyToClipboard: (element) => navigator.clipboard.writeText(element.textContent)
+            }));
+        });
     </script>
 </body>
+
 </html>
