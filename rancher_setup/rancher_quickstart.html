@@ -64,9 +64,9 @@
             <form>
                 <label for="nodeSize">Node Size:</label>
                 <select id="nodeSize" x-model="formData.nodeSize">
-                    <option value="4">Small (4 cores, 32G mem, 400G disk)</option>
-                    <option value="8">Medium (8 cores, 64G mem, 800G disk)</option>
-                    <option value="16">Large (16 cores, 128G mem, 1.6T disk)</option>
+                    <option value="4">Small (4 cores, 32G mem, 937G disk)</option>
+                    <option value="8">Medium (8 cores, 64G mem, 1.9T disk)</option>
+                    <option value="16">Large (16 cores, 128G mem, 3.8T disk)</option>
                 </select><br>
                 <label for="workerCount">Workers:</label>
                 <input type="number" id="workerCount" x-model.number="formData.workerCount" min="0" max="300"
@@ -108,27 +108,25 @@ Volume Capacity: <span x-text="totalVolumes"></span>G</code>
                 get totalNodes() { return 3 + Math.max(0, Math.min(300, this.formData.workerCount || 0)); },
                 get totalCPU() { return this.totalNodes * Math.floor(this.formData.nodeSize); },
                 get totalMemory() { return this.totalCPU * 8; },
-                get totalDisk() { return this.totalCPU * 100; },
+                get totalDisk() { return this.totalCPU * 234; },
                 get totalVolumes() { return Math.floor(this.totalDisk * 0.8 / 3); },
-                get awsInstance() { return {4: 'r6a.xlarge', 8: 'r6a.2xlarge', 16: 'r6a.4xlarge'}[this.formData.nodeSize] },
+                get awsInstance() { return {4: 'i4i.xlarge', 8: 'i4i.2xlarge', 16: 'i4i.4xlarge'}[this.formData.nodeSize] },
                 get azureInstance() { return {4: 'Standard_E4as_v6', 8: 'Standard_E8as_v6', 16: 'Standard_E16as_v6'}[this.formData.nodeSize] },
                 generateCloudFormationYAML: (data) => `AWSTemplateFormatVersion: '2010-09-09'
-Description: Rancher manager with RKE2 control plane and worker nodes, plus
-  Network Load Balancer for control plane nodes
+Description: RKE2 quickstart cluster (cilium & longhorn ready, ${data.awsInstance}, ${data.formData.ipSubnet})
 
 Parameters:
-  ImageId:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/debian/release/bookworm/latest/amd64
-  InstanceType:
+  DomainName:
     Type: String
-    Default: ${data.awsInstance}
-  VolumeSize:
-    Type: Number
-    Default: ${data.formData.nodeSize * 100}
+    Description: The full domain name for the A record (e.g., myserver.example.com)
+    Default: ""
+  HostedZoneName:
+    Type: String
+    Description: The name of the hosted zone with trailing dot (e.g., example.com.)
+    Default: ""
   ManagerBootstrap:
     Type: String
-    Default: curl -sL https://wagov-dtt.github.io/iac_templates/rancher_setup/rancher_k3s.py | python3 - <rancher_fqdn> <password>
+    Default: curl -sL https://wagov-dtt.github.io/iac_templates/rancher_setup/rancher_k3s.py | python3 - <DomainName> <Password>
     Description: Bootstrap cmd for rancher manager
   RegisterControlPlane:
     Type: String
@@ -141,17 +139,17 @@ Parameters:
   WorkerCount:
     Type: Number
     Default: ${data.formData.workerCount}
-  VPCSubnet:
-    Type: String
-    Description: VPC Subnet
-    Default: ${data.formData.ipSubnet}
+
+
+Conditions:
+  CreateDNSRecord: !Not [!Equals [!Ref DomainName, ""]]
 
 
 Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: !Ref VPCSubnet
+      CidrBlock: ${data.formData.ipSubnet}
       EnableDnsHostnames: true
       EnableDnsSupport: true
       Tags:
@@ -171,21 +169,21 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
-      CidrBlock: !Select [ 0, !Cidr [ !Ref VPCSubnet, 3, 12 ] ]
+      CidrBlock: !Select [ 0, !Cidr [ !GetAtt VPC.CidrBlock, 3, 12 ] ]
       MapPublicIpOnLaunch: true
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
-      CidrBlock: !Select [ 1, !Cidr [ !Ref VPCSubnet, 3, 12 ] ]
+      CidrBlock: !Select [ 1, !Cidr [ !GetAtt VPC.CidrBlock, 3, 12 ] ]
       MapPublicIpOnLaunch: true
   PublicSubnet3:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 2, !GetAZs '' ]
-      CidrBlock: !Select [ 2, !Cidr [ !Ref VPCSubnet, 3, 12 ] ]
+      CidrBlock: !Select [ 2, !Cidr [ !GetAtt VPC.CidrBlock, 3, 12 ] ]
       MapPublicIpOnLaunch: true
 
   PublicRouteTable:
@@ -291,8 +289,8 @@ Resources:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateData:
-        ImageId: !Ref ImageId
-        InstanceType: !Ref InstanceType
+        ImageId: !Sub '{{resolve:ssm:/aws/service/debian/release/bookworm/latest/amd64}}'
+        InstanceType: ${data.awsInstance}
         IamInstanceProfile:
           Arn: !GetAtt InstanceProfile.Arn
         MetadataOptions:
@@ -301,7 +299,7 @@ Resources:
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
             Ebs:
-              VolumeSize: !Ref VolumeSize
+              VolumeSize: ${data.formData.nodeSize * 32}
               VolumeType: gp3
               DeleteOnTermination: true
         UserData:
@@ -316,6 +314,7 @@ Resources:
   RancherManagerInstance:
     Type: AWS::EC2::Instance
     Properties:
+      InstanceType: r6a.xlarge
       LaunchTemplate:
         LaunchTemplateId: !Ref BaseLaunchTemplate
         Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
@@ -325,6 +324,17 @@ Resources:
         - Key: Name
           Value: !Sub \${AWS::StackName}-Manager
 
+  ManagerInstanceDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateDNSRecord
+    Properties:
+      HostedZoneName: !Ref HostedZoneName
+      Name: !Ref DomainName
+      Type: A
+      TTL: '300'
+      ResourceRecords:
+        - !GetAtt RancherManagerInstance.PublicIp
+
   ControlPlaneASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -332,9 +342,15 @@ Resources:
       DesiredCapacity: 3
       MinSize: 3
       MaxSize: 30
-      LaunchTemplate:
-        LaunchTemplateId: !Ref BaseLaunchTemplate
-        Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          OnDemandPercentageAboveBaseCapacity: 5
+          OnDemandBaseCapacity: 0
+          SpotAllocationStrategy: capacity-optimized
+        LaunchTemplate:
+            LaunchTemplateSpecification:
+                LaunchTemplateId: !Ref BaseLaunchTemplate
+                Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
       TargetGroupARNs: [ !Ref ControlPlaneTargetGroup ]
       Tags:
         - Key: Name
@@ -351,9 +367,15 @@ Resources:
       DesiredCapacity: !Ref WorkerCount
       MinSize: 0
       MaxSize: 300
-      LaunchTemplate:
-        LaunchTemplateId: !Ref BaseLaunchTemplate
-        Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          OnDemandPercentageAboveBaseCapacity: 5
+          OnDemandBaseCapacity: 0
+          SpotAllocationStrategy: capacity-optimized
+        LaunchTemplate:
+            LaunchTemplateSpecification:
+                LaunchTemplateId: !Ref BaseLaunchTemplate
+                Version: !GetAtt BaseLaunchTemplate.LatestVersionNumber
       Tags:
         - Key: Name
           Value: !Sub \${AWS::StackName}-Worker
@@ -384,6 +406,7 @@ Resources:
           Values: [ ControlPlane ]
       Parameters:
         commands: 
+          - mkfs.ext4 /dev/nvme1n1; mkdir -p /var/lib/longhorn; mount /dev/nvme1n1 /var/lib/longhorn
           - !Ref RegisterControlPlane
 
   WorkerSSMAssociation:
@@ -395,7 +418,8 @@ Resources:
         - Key: tag:NodeType
           Values: [ Worker ]
       Parameters:
-        commands: 
+        commands:
+          - mkfs.ext4 /dev/nvme1n1; mkdir -p /var/lib/longhorn; mount /dev/nvme1n1 /var/lib/longhorn
           - !Ref RegisterWorker
 
   NetworkLoadBalancer:
