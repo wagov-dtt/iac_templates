@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EKS cluster with i4i.xlarge instances, standard support, and mixed instance policy
+
+Parameters:
+  EKSClusterName:
+    Type: String
+    Default: MyEKSCluster
+    Description: Name of the EKS cluster
+
+Resources:
+  EKSClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Ref EKSClusterName
+      RoleArn: !GetAtt EKSClusterRole.Arn
+      ResourcesVpcConfig:
+        EndpointPublicAccess: true
+        EndpointPrivateAccess: false
+      Logging:
+        ClusterLogging:
+          EnabledTypes:
+            - Type: api
+            - Type: audit
+            - Type: authenticator
+      KubernetesNetworkConfig:
+        IpFamily: ipv4
+      UpgradePolicy:
+        SupportType: STANDARD
+
+  EKSNodeGroupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+  NodeLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceType: i4i.xlarge
+        UserData:
+          Fn::Base64:
+            !Sub |
+              #!/bin/bash
+              mkfs.ext4 /dev/nvme1n1
+              mkdir -p /var/lib/longhorn
+              echo "/dev/nvme1n1 /var/lib/longhorn ext4 defaults 0 2" >> /etc/fstab
+              mount /var/lib/longhorn
+
+  SpotNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      NodeGroupName: !Sub ${AWS::StackName}-SpotNodeGroup
+      NodeRole: !GetAtt EKSNodeGroupRole.Arn
+      ScalingConfig:
+        MinSize: 1
+        DesiredSize: 1
+        MaxSize: 300
+      CapacityType: SPOT
+      LaunchTemplate:
+        Id: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      InstanceTypes: 
+        - i4i.xlarge
+      UpdateConfig:
+        MaxUnavailablePercentage: 33
+
+  OnDemandNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      NodeGroupName: !Sub ${AWS::StackName}-OnDemandNodeGroup
+      NodeRole: !GetAtt EKSNodeGroupRole.Arn
+      ScalingConfig:
+        MinSize: 2
+        DesiredSize: 2
+        MaxSize: 2
+      CapacityType: ON_DEMAND
+      LaunchTemplate:
+        Id: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      InstanceTypes: 
+        - i4i.xlarge
+      UpdateConfig:
+        MaxUnavailablePercentage: 50
+
+Outputs:
+  EKSClusterName:
+    Description: Name of the EKS cluster
+    Value: !Ref EKSCluster
+  EKSClusterEndpoint:
+    Description: Endpoint for the EKS cluster
+    Value: !GetAtt EKSCluster.Endpoint
+  EKSClusterSupportType:
+    Description: Support type for the EKS cluster
+    Value: STANDARD
