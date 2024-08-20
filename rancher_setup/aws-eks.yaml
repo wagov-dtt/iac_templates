@@ -1,13 +1,83 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: EKS cluster with i4i.xlarge instances, standard support, and mixed instance policy
+Description: EKS cluster with simplified VPC, i4i.xlarge instances, standard support, and mixed instance policy
 
 Parameters:
   EKSClusterName:
     Type: String
     Default: MyEKSCluster
     Description: Name of the EKS cluster
+  VPCCidrBlock:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block for the VPC
 
 Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidrBlock
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Select [ 0, !Cidr [ !GetAtt VPC.CidrBlock, 3, 8 ] ]
+      MapPublicIpOnLaunch: true
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !Select [ 1, !Cidr [ !GetAtt VPC.CidrBlock, 3, 8 ] ]
+      MapPublicIpOnLaunch: true
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      CidrBlock: !Select [ 2, !Cidr [ !GetAtt VPC.CidrBlock, 3, 8 ] ]
+      MapPublicIpOnLaunch: true
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet3
+      RouteTableId: !Ref PublicRouteTable
+
   EKSClusterRole:
     Type: AWS::IAM::Role
     Properties:
@@ -27,16 +97,10 @@ Resources:
       Name: !Ref EKSClusterName
       RoleArn: !GetAtt EKSClusterRole.Arn
       ResourcesVpcConfig:
-        EndpointPublicAccess: true
-        EndpointPrivateAccess: false
-      Logging:
-        ClusterLogging:
-          EnabledTypes:
-            - Type: api
-            - Type: audit
-            - Type: authenticator
-      KubernetesNetworkConfig:
-        IpFamily: ipv4
+        SubnetIds: 
+          - !Ref PublicSubnet1
+          - !Ref PublicSubnet2
+          - !Ref PublicSubnet3
       UpgradePolicy:
         SupportType: STANDARD
 
@@ -73,8 +137,11 @@ Resources:
     Type: AWS::EKS::Nodegroup
     Properties:
       ClusterName: !Ref EKSCluster
-      NodeGroupName: !Sub ${AWS::StackName}-SpotNodeGroup
       NodeRole: !GetAtt EKSNodeGroupRole.Arn
+      Subnets: 
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+        - !Ref PublicSubnet3
       ScalingConfig:
         MinSize: 1
         DesiredSize: 1
@@ -83,17 +150,16 @@ Resources:
       LaunchTemplate:
         Id: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
-      InstanceTypes: 
-        - i4i.xlarge
-      UpdateConfig:
-        MaxUnavailablePercentage: 33
 
   OnDemandNodeGroup:
     Type: AWS::EKS::Nodegroup
     Properties:
       ClusterName: !Ref EKSCluster
-      NodeGroupName: !Sub ${AWS::StackName}-OnDemandNodeGroup
       NodeRole: !GetAtt EKSNodeGroupRole.Arn
+      Subnets: 
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+        - !Ref PublicSubnet3
       ScalingConfig:
         MinSize: 2
         DesiredSize: 2
@@ -102,18 +168,14 @@ Resources:
       LaunchTemplate:
         Id: !Ref NodeLaunchTemplate
         Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
-      InstanceTypes: 
-        - i4i.xlarge
-      UpdateConfig:
-        MaxUnavailablePercentage: 50
 
 Outputs:
+  VPCId:
+    Description: ID of the created VPC
+    Value: !Ref VPC
   EKSClusterName:
     Description: Name of the EKS cluster
     Value: !Ref EKSCluster
   EKSClusterEndpoint:
     Description: Endpoint for the EKS cluster
     Value: !GetAtt EKSCluster.Endpoint
-  EKSClusterSupportType:
-    Description: Support type for the EKS cluster
-    Value: STANDARD
