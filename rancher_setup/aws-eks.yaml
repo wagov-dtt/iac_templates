@@ -127,11 +127,19 @@ Resources:
         UserData:
           Fn::Base64:
             !Sub |
+              MIME-Version: 1.0
+              Content-Type: multipart/mixed; boundary="==BOUNDARY=="
+
+              --==BOUNDARY==
+              Content-Type: text/x-shellscript; charset="us-ascii"
+
               #!/bin/bash
               mkfs.ext4 /dev/nvme1n1
               mkdir -p /var/lib/longhorn
               echo "/dev/nvme1n1 /var/lib/longhorn ext4 defaults 0 2" >> /etc/fstab
               mount /var/lib/longhorn
+
+              --==BOUNDARY==--
 
   SpotNodeGroup:
     Type: AWS::EKS::Nodegroup
