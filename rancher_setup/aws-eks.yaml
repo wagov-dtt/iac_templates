@@ -1,21 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: EKS cluster with simplified VPC, i4i.xlarge instances, standard support, and mixed instance policy
 
-Parameters:
-  EKSClusterName:
-    Type: String
-    Default: MyEKSCluster
-    Description: Name of the EKS cluster
-  VPCCidrBlock:
-    Type: String
-    Default: 10.0.0.0/16
-    Description: CIDR block for the VPC
-
 Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: !Ref VPCCidrBlock
+      CidrBlock: 10.0.0.0/16
       EnableDnsHostnames: true
       EnableDnsSupport: true
       Tags:
@@ -35,21 +25,21 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
-      CidrBlock: !Select [ 0, !Cidr [ !GetAtt VPC.CidrBlock, 3, 8 ] ]
+      CidrBlock: !Select [ 0, !Cidr [ !GetAtt VPC.CidrBlock, 3, 12 ] ]
       MapPublicIpOnLaunch: true
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
-      CidrBlock: !Select [ 1, !Cidr [ !GetAtt VPC.CidrBlock, 3, 8 ] ]
+      CidrBlock: !Select [ 1, !Cidr [ !GetAtt VPC.CidrBlock, 3, 12 ] ]
       MapPublicIpOnLaunch: true
   PublicSubnet3:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 2, !GetAZs '' ]
-      CidrBlock: !Select [ 2, !Cidr [ !GetAtt VPC.CidrBlock, 3, 8 ] ]
+      CidrBlock: !Select [ 2, !Cidr [ !GetAtt VPC.CidrBlock, 3, 12 ] ]
       MapPublicIpOnLaunch: true
 
   PublicRouteTable:
@@ -94,7 +84,7 @@ Resources:
   EKSCluster:
     Type: AWS::EKS::Cluster
     Properties:
-      Name: !Ref EKSClusterName
+      Name: !Sub ${AWS::StackName}
       RoleArn: !GetAtt EKSClusterRole.Arn
       ResourcesVpcConfig:
         SubnetIds: 
