@@ -124,10 +124,9 @@ Resources:
               Content-Type: text/x-shellscript; charset="us-ascii"
 
               #!/bin/bash
-              mkfs.ext4 /dev/nvme1n1
-              mkdir -p /var/lib/longhorn
-              echo "/dev/nvme1n1 /var/lib/longhorn ext4 defaults 0 2" >> /etc/fstab
-              mount /var/lib/longhorn
+              /bin/setup-local-disks raid0
+              yum update -y
+              yum install -y iscsi-initiator-utils
 
               --==BOUNDARY==--
 
