@@ -9,24 +9,17 @@ Resources:
       EnableDnsHostnames: true
       EnableDnsSupport: true
       InstanceTenancy: default
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-VPC
+      Tags: [{Key: Name, Value: !Sub '${AWS::StackName}-VPC'}]
 
   VPCCidrBlock:
     Type: AWS::EC2::VPCCidrBlock
-    Properties:
-      VpcId: !Ref VPC
-      AmazonProvidedIpv6CidrBlock: true
+    Properties: {VpcId: !Ref VPC, AmazonProvidedIpv6CidrBlock: true}
 
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
+  InternetGateway: {Type: AWS::EC2::InternetGateway}
 
   IGWAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref VPC
-      InternetGatewayId: !Ref InternetGateway
+    Properties: {VpcId: !Ref VPC, InternetGatewayId: !Ref InternetGateway}
 
   PublicSubnet1:
     Type: AWS::EC2::Subnet
@@ -36,17 +29,7 @@ Resources:
       CidrBlock: 10.0.0.0/18
       MapPublicIpOnLaunch: true
       AssignIpv6AddressOnCreation: true
-      Ipv6CidrBlock: 
-        Fn::Select: 
-          - 0
-          - Fn::Cidr: 
-            - Fn::Select: 
-              - 0
-              - Fn::GetAtt: 
-                - VPC
-                - Ipv6CidrBlocks
-            - 3
-            - 64
+      Ipv6CidrBlock: !Select [0, !Cidr [!Select [0, !GetAtt VPC.Ipv6CidrBlocks], 3, 64]]
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -56,17 +39,7 @@ Resources:
       CidrBlock: 10.0.64.0/18
       MapPublicIpOnLaunch: true
       AssignIpv6AddressOnCreation: true
-      Ipv6CidrBlock: 
-        Fn::Select: 
-          - 1
-          - Fn::Cidr: 
-            - Fn::Select: 
-              - 0
-              - Fn::GetAtt: 
-                - VPC
-                - Ipv6CidrBlocks
-            - 3
-            - 64
+      Ipv6CidrBlock: !Select [1, !Cidr [!Select [0, !GetAtt VPC.Ipv6CidrBlocks], 3, 64]]
 
   PublicSubnet3:
     Type: AWS::EC2::Subnet
@@ -76,93 +49,53 @@ Resources:
       CidrBlock: 10.0.128.0/18
       MapPublicIpOnLaunch: true
       AssignIpv6AddressOnCreation: true
-      Ipv6CidrBlock: 
-        Fn::Select: 
-          - 2
-          - Fn::Cidr: 
-            - Fn::Select: 
-              - 0
-              - Fn::GetAtt: 
-                - VPC
-                - Ipv6CidrBlocks
-            - 3
-            - 64
+      Ipv6CidrBlock: !Select [2, !Cidr [!Select [0, !GetAtt VPC.Ipv6CidrBlocks], 3, 64]]
 
-  PublicRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
+  PublicRouteTable: {Type: AWS::EC2::RouteTable, Properties: {VpcId: !Ref VPC}}
 
   PublicRoute:
     Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
+    Properties: {RouteTableId: !Ref PublicRouteTable, DestinationCidrBlock: 0.0.0.0/0, GatewayId: !Ref InternetGateway}
 
   PublicRouteIPv6:
     Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationIpv6CidrBlock: ::/0
-      GatewayId: !Ref InternetGateway
+    Properties: {RouteTableId: !Ref PublicRouteTable, DestinationIpv6CidrBlock: '::/0', GatewayId: !Ref InternetGateway}
 
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet1
-      RouteTableId: !Ref PublicRouteTable
+    Properties: {SubnetId: !Ref PublicSubnet1, RouteTableId: !Ref PublicRouteTable}
 
   PublicSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet2
-      RouteTableId: !Ref PublicRouteTable
+    Properties: {SubnetId: !Ref PublicSubnet2, RouteTableId: !Ref PublicRouteTable}
 
   PublicSubnet3RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet3
-      RouteTableId: !Ref PublicRouteTable
+    Properties: {SubnetId: !Ref PublicSubnet3, RouteTableId: !Ref PublicRouteTable}
 
   EKSClusterRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: eks.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        Statement: [{Effect: Allow, Principal: {Service: eks.amazonaws.com}, Action: sts:AssumeRole}]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/AmazonEKSClusterPolicy]
 
   EKSCluster:
     Type: AWS::EKS::Cluster
     Properties:
       Name: !Sub ${AWS::StackName}
       RoleArn: !GetAtt EKSClusterRole.Arn
-      ResourcesVpcConfig:
-        SubnetIds: 
-          - !Ref PublicSubnet1
-          - !Ref PublicSubnet2
-          - !Ref PublicSubnet3
-      KubernetesNetworkConfig:
-        IpFamily: ipv6
-      UpgradePolicy:
-        SupportType: STANDARD
+      ResourcesVpcConfig: {SubnetIds: [!Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3]}
+      KubernetesNetworkConfig: {IpFamily: ipv6}
+      UpgradePolicy: {SupportType: STANDARD}
 
   EKSNodeGroupRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
+        Statement: [{Effect: Allow, Principal: {Service: ec2.amazonaws.com}, Action: sts:AssumeRole}]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
@@ -173,18 +106,11 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - ec2:AssignIpv6Addresses
-                  - ec2:DescribeInstances
-                  - ec2:DescribeTags
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DescribeInstanceTypes
+                Action: [ec2:AssignIpv6Addresses, ec2:DescribeInstances, ec2:DescribeTags, ec2:DescribeNetworkInterfaces, ec2:DescribeInstanceTypes]
                 Resource: "*"
               - Effect: Allow
-                Action:
-                  - ec2:CreateTags
-                Resource:
-                  - arn:aws:ec2:*:*:network-interface/*
+                Action: [ec2:CreateTags]
+                Resource: [arn:aws:ec2:*:*:network-interface/*]
 
   NodeLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -193,106 +119,89 @@ Resources:
         InstanceType: i4i.xlarge
         ImageId: '{{resolve:ssm:/aws/service/eks/optimized-ami/1.30/amazon-linux-2023/x86_64/standard/recommended/image_id}}'
         UserData:
-          Fn::Base64:
-            !Sub
-              - |
-                ---
-                apiVersion: node.eks.aws/v1alpha1
-                kind: NodeConfig
-                spec:
-                  cluster:
-                    name: ${ClusterName}
-                    apiServerEndpoint: ${ApiServerEndpoint}
-                    certificateAuthority: ${CertificateAuthority}
-                    cidr: ${ClusterCidr}
-                  kubelet:
-                    config:
-                      maxPods: 600
-                  instance:
-                    localStorage:
-                      strategy: RAID0
-              - ClusterName: !Ref EKSCluster
-                ApiServerEndpoint: !GetAtt EKSCluster.Endpoint
-                CertificateAuthority: !GetAtt EKSCluster.CertificateAuthorityData
-                ClusterCidr: !GetAtt EKSCluster.KubernetesNetworkConfig.ServiceIpv6Cidr
+          Fn::Base64: !Sub
+            - |
+              ---
+              apiVersion: node.eks.aws/v1alpha1
+              kind: NodeConfig
+              spec:
+                cluster:
+                  name: ${ClusterName}
+                  apiServerEndpoint: ${ApiServerEndpoint}
+                  certificateAuthority: ${CertificateAuthority}
+                  cidr: ${ClusterCidr}
+                kubelet:
+                  config:
+                    maxPods: 600
+                instance:
+                  localStorage:
+                    strategy: RAID0
+            - ClusterName: !Ref EKSCluster
+              ApiServerEndpoint: !GetAtt EKSCluster.Endpoint
+              CertificateAuthority: !GetAtt EKSCluster.CertificateAuthorityData
+              ClusterCidr: !GetAtt EKSCluster.KubernetesNetworkConfig.ServiceIpv6Cidr
+
+  SSMInstallDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Command
+      Content:
+        schemaVersion: '2.2'
+        description: 'Install packages'
+        mainSteps:
+        - action: aws:runShellScript
+          name: installIscsi
+          inputs:
+            runCommand: ['dnf update -y; dnf install -y iscsi-initiator-utils']
+
+  SSMAssociation:
+    Type: AWS::SSM::Association
+    Properties:
+      Name: !Ref SSMInstallDocument
+      Targets: [{Key: tag:aws:eks:cluster-name, Values: [!Ref EKSCluster]}]
 
   SpotNodeGroup:
     Type: AWS::EKS::Nodegroup
     Properties:
       ClusterName: !Ref EKSCluster
       NodeRole: !GetAtt EKSNodeGroupRole.Arn
-      Subnets: 
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
-        - !Ref PublicSubnet3
-      ScalingConfig:
-        MinSize: 1
-        DesiredSize: 1
-        MaxSize: 300
+      Subnets: [!Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3]
+      ScalingConfig: {MinSize: 1, DesiredSize: 1, MaxSize: 300}
       CapacityType: SPOT
-      LaunchTemplate:
-        Id: !Ref NodeLaunchTemplate
-        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      LaunchTemplate: {Id: !Ref NodeLaunchTemplate, Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber}
 
   OnDemandNodeGroup:
     Type: AWS::EKS::Nodegroup
     Properties:
       ClusterName: !Ref EKSCluster
       NodeRole: !GetAtt EKSNodeGroupRole.Arn
-      Subnets: 
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
-        - !Ref PublicSubnet3
-      ScalingConfig:
-        MinSize: 2
-        DesiredSize: 2
-        MaxSize: 2
+      Subnets: [!Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3]
+      ScalingConfig: {MinSize: 2, DesiredSize: 2, MaxSize: 2}
       CapacityType: ON_DEMAND
-      LaunchTemplate:
-        Id: !Ref NodeLaunchTemplate
-        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      LaunchTemplate: {Id: !Ref NodeLaunchTemplate, Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber}
 
   LonghornBackupBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub ${AWS::StackName}-longhorn-backups
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
+      VersioningConfiguration: {Status: Enabled}
+      PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
 
   LonghornBackupRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
+        Statement: [{Effect: Allow, Principal: {Service: ec2.amazonaws.com}, Action: sts:AssumeRole}]
       Policies:
         - PolicyName: LonghornBackupS3Access
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:ListBucket
-                  - s3:DeleteObject
-                Resource:
-                  - !Sub arn:aws:s3:::${LonghornBackupBucket}
-                  - !Sub arn:aws:s3:::${LonghornBackupBucket}/*
+                Action: [s3:PutObject, s3:GetObject, s3:ListBucket, s3:DeleteObject]
+                Resource: [!Sub 'arn:aws:s3:::${LonghornBackupBucket}', !Sub 'arn:aws:s3:::${LonghornBackupBucket}/*']
 
 Outputs:
-  EKSCluster:
-    Description: EKS Cluster
-    Value: !Ref EKSCluster
-  LonghornBackupRoleARN:
-    Description: ARN of IAM role for Longhorn S3 backup access
-    Value: !GetAtt LonghornBackupRole.Arn
+  EKSCluster: {Description: EKS Cluster, Value: !Ref EKSCluster}
+  LonghornBackupRoleARN: {Description: ARN of IAM role for Longhorn S3 backup access, Value: !GetAtt LonghornBackupRole.Arn}
