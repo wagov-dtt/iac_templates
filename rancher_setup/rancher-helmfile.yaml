@@ -1,0 +1,67 @@
+# Quick start:
+# 1. Install Helmfile: https://github.com/helmfile/helmfile#installation
+# 2. Save as helmfile.yaml
+# 3. Run: helmfile init --force
+# 4. Run: helmfile apply
+#
+# Ensure kubectl is configured for your EKS cluster before running.
+
+repositories:
+  - name: eks
+    url: https://aws.github.io/eks-charts
+  - name: traefik
+    url: https://helm.traefik.io/traefik
+  - name: jetstack
+    url: https://charts.jetstack.io
+  - name: rancher-latest
+    url: https://releases.rancher.com/server-charts/latest
+
+releases:
+  - name: aws-load-balancer-controller
+    namespace: kube-system
+    chart: eks/aws-load-balancer-controller
+    set:
+      - name: clusterName
+        value: your-cluster-name  # Replace with your EKS cluster name
+
+  - name: traefik
+    namespace: traefik
+    chart: traefik/traefik
+    set:
+      - name: ingressClass.enabled
+        value: true
+      - name: ingressClass.isDefaultClass
+        value: true
+
+  - name: cert-manager
+    namespace: cert-manager
+    chart: jetstack/cert-manager
+    set:
+      - name: installCRDs
+        value: true
+
+  - name: rancher
+    namespace: cattle-system
+    chart: rancher-latest/rancher
+    set:
+      - name: hostname
+        value: rancher.your-domain.com  # Replace with your domain
+      - name: bootstrapPassword
+        value: admin  # Change this to a secure password
+
+# Add a ClusterIssuer for cert-manager (HTTP challenge)
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-http01
+spec:
+  acme:
+    email: your-email@example.com  # Replace with your email
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-http01-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: traefik
