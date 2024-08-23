@@ -1,7 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: EKS cluster with IPv6 VPC, i4i instances, standard support, mixed instance policy, 600 pods per node, and Longhorn S3 backup bucket
+Description: EKS cluster with IPv6 VPC, dualstack NLB, i4i instances, standard support, mixed instance policy, 600 pods per node
 
 Parameters:
+  PlatformVersion:
+    Type: String
+    Default: "1.30"
+    Description: Kubernetes platform version
+
   InstanceSize:
     Type: String
     Default: 2xlarge
@@ -103,6 +108,7 @@ Resources:
       ResourcesVpcConfig: {SubnetIds: [!Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3]}
       KubernetesNetworkConfig: {IpFamily: ipv6}
       UpgradePolicy: {SupportType: STANDARD}
+      Version: !Ref PlatformVersion
 
   EKSNodeGroupRole:
     Type: AWS::IAM::Role
@@ -131,7 +137,8 @@ Resources:
     Properties:
       LaunchTemplateData:
         InstanceType: !Sub 'i4i.${InstanceSize}'
-        ImageId: '{{resolve:ssm:/aws/service/eks/optimized-ami/1.30/amazon-linux-2023/x86_64/standard/recommended/image_id}}'
+        ImageId: !Sub '{{resolve:ssm:/aws/service/eks/optimized-ami/${PlatformVersion}/amazon-linux-2023/x86_64/standard/recommended/image_id}}'
+        NetworkInterfaces: [{DeviceIndex: 0, Ipv6AddressCount: 1, PrimaryIpv6: true}]
         UserData:
           Fn::Base64: !Sub
             - |
@@ -197,28 +204,69 @@ Resources:
       CapacityType: ON_DEMAND
       LaunchTemplate: {Id: !Ref NodeLaunchTemplate, Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber}
 
-  LonghornBackupBucket:
-    Type: AWS::S3::Bucket
+  EKSAddonCoreDNS:
+    Type: AWS::EKS::Addon
     Properties:
-      BucketName: !Sub ${AWS::StackName}-longhorn-backups
-      VersioningConfiguration: {Status: Enabled}
-      PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
+      AddonName: coredns
+      ClusterName: !Ref EKSCluster
 
-  LonghornBackupRole:
-    Type: AWS::IAM::Role
+  EKSAddonKubeProxy:
+    Type: AWS::EKS::Addon
     Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement: [{Effect: Allow, Principal: {Service: ec2.amazonaws.com}, Action: sts:AssumeRole}]
-      Policies:
-        - PolicyName: LonghornBackupS3Access
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: [s3:PutObject, s3:GetObject, s3:ListBucket, s3:DeleteObject]
-                Resource: [!Sub 'arn:aws:s3:::${LonghornBackupBucket}', !Sub 'arn:aws:s3:::${LonghornBackupBucket}/*']
+      AddonName: kube-proxy
+      ClusterName: !Ref EKSCluster
+
+  EKSAddonVPCCNI:
+    Type: AWS::EKS::Addon
+    Properties:
+      AddonName: vpc-cni
+      ClusterName: !Ref EKSCluster
+
+  DualStackNLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: network
+      Scheme: internet-facing
+      IpAddressType: dualstack
+      Subnets: [!Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3]
+
+  NLBHTTPTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: TCP
+      VpcId: !Ref VPC
+      TargetType: instance
+      IpAddressType: ipv6
+
+  NLBHTTPSTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 443
+      Protocol: TCP
+      VpcId: !Ref VPC
+      TargetType: instance
+      IpAddressType: ipv6
+
+  NLBHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NLBHTTPTargetGroup
+      LoadBalancerArn: !Ref DualStackNLB
+      Port: 80
+      Protocol: TCP
+
+  NLBHTTPSListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NLBHTTPSTargetGroup
+      LoadBalancerArn: !Ref DualStackNLB
+      Port: 443
+      Protocol: TCP
 
 Outputs:
   EKSCluster: {Description: EKS Cluster, Value: !Ref EKSCluster}
-  LonghornBackupRoleARN: {Description: ARN of IAM role for Longhorn S3 backup access, Value: !GetAtt LonghornBackupRole.Arn}
