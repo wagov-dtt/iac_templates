@@ -1,5 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: EKS cluster with IPv6 VPC, i4i.xlarge instances, standard support, mixed instance policy, 600 pods per node, and Longhorn S3 backup bucket
+Description: EKS cluster with IPv6 VPC, i4i instances, standard support, mixed instance policy, 600 pods per node, and Longhorn S3 backup bucket
+
+Parameters:
+  InstanceSize:
+    Type: String
+    Default: 2xlarge
+    AllowedValues: [xlarge, 2xlarge, 4xlarge]
+    Description: Size of the i4i instances to use for the EKS nodes
+
+  DesiredSpotInstances:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    MaxValue: 300
+    Description: Desired number of spot instances in the EKS cluster
 
 Resources:
   VPC:
@@ -59,7 +73,7 @@ Resources:
 
   PublicRouteIPv6:
     Type: AWS::EC2::Route
-    Properties: {RouteTableId: !Ref PublicRouteTable, DestinationIpv6CidrBlock: ::/0, GatewayId: !Ref InternetGateway}
+    Properties: {RouteTableId: !Ref PublicRouteTable, DestinationIpv6CidrBlock: '::/0', GatewayId: !Ref InternetGateway}
 
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -116,7 +130,7 @@ Resources:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateData:
-        InstanceType: i4i.xlarge
+        InstanceType: !Sub 'i4i.${InstanceSize}'
         ImageId: '{{resolve:ssm:/aws/service/eks/optimized-ami/1.30/amazon-linux-2023/x86_64/standard/recommended/image_id}}'
         UserData:
           Fn::Base64: !Sub
@@ -166,7 +180,10 @@ Resources:
       ClusterName: !Ref EKSCluster
       NodeRole: !GetAtt EKSNodeGroupRole.Arn
       Subnets: [!Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3]
-      ScalingConfig: {MinSize: 1, DesiredSize: 1, MaxSize: 300}
+      ScalingConfig:
+        MinSize: 0
+        DesiredSize: !Ref DesiredSpotInstances
+        MaxSize: 300
       CapacityType: SPOT
       LaunchTemplate: {Id: !Ref NodeLaunchTemplate, Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber}
 
@@ -200,7 +217,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: [s3:PutObject, s3:GetObject, s3:ListBucket, s3:DeleteObject]
-                Resource: [!Sub arn:aws:s3:::${LonghornBackupBucket}, !Sub arn:aws:s3:::${LonghornBackupBucket}/*]
+                Resource: [!Sub 'arn:aws:s3:::${LonghornBackupBucket}', !Sub 'arn:aws:s3:::${LonghornBackupBucket}/*']
 
 Outputs:
   EKSCluster: {Description: EKS Cluster, Value: !Ref EKSCluster}
