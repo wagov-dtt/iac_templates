@@ -7,8 +7,8 @@ from subprocess import run
 cluster_name = os.environ.get("CLUSTER_NAME", "eks01")
 region = os.environ.get("AWS_REGION", "ap-southeast-2")
 tags = os.environ.get("TAGS", "environment=dev,project=demo")
-node_groups = os.environ.get("NODE_GROUPS", "base:2,scale-spot:1")
-instance_type = os.environ.get("INSTANCE_TYPE", "i4i.2xlarge")
+node_groups = os.environ.get("NODE_GROUPS", "base:2,scale-spot:4")
+instance_type = os.environ.get("INSTANCE_TYPE", "i4i.xlarge")
 rancher_fqdn = os.environ.get("RANCHER_FQDN", False)
 
 
@@ -33,8 +33,7 @@ def parse_node_groups(node_groups_str):
             "desiredCapacity": int(size),
             "disableIMDSv1": True,
             "amiFamily": "Ubuntu2204",
-            "maxPodsPerNode": 600,
-            "volumeSize": 300,
+            "volumeSize": 200,
             "preBootstrapCommands": [
                 "apt-get -y update && apt-get -y install open-iscsi",
                 """cat << 'EOF' > /etc/systemd/system/mount-nvme.service
@@ -116,11 +115,13 @@ rancher_cmds = [
     "helm repo add eks https://aws.github.io/eks-charts",
     "helm repo add traefik https://traefik.github.io/charts",
     "helm repo add jetstack https://charts.jetstack.io",
+    "helm repo add longhorn https://charts.longhorn.io",
     "helm repo add rancher-latest https://releases.rancher.com/server-charts/latest",
     "helm repo update",
     f"helm install --atomic aws-load-balancer-controller eks/aws-load-balancer-controller -n kube-system --set clusterName={cluster_name} --set serviceAccount.create=false --set serviceAccount.name=aws-load-balancer-controller",
     "helm install --atomic traefik traefik/traefik -n kube-system -f traefik-values.yaml",
     "helm install --atomic cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true",
+    "helm install --atomic longhorn longhorn/longhorn --namespace longhorn-system --create-namespace --set defaultSettings.storageReservedPercentageForDefaultDisk=5",
     ("helm install --atomic rancher rancher-latest/rancher --create-namespace --namespace cattle-system --set ingress.tls.source=letsEncrypt"
      f" --set letsEncrypt.ingress.class=traefik --set hostname={rancher_fqdn} --set letsEncrypt.email={rancher_fqdn}@maildrop.cc")
 ]
