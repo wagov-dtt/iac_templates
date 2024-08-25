@@ -65,6 +65,12 @@ def generate_config(temp_dir):
         "kind": "ClusterConfig",
         "metadata": {"name": cluster_name, "region": region, "tags": {tag.split("=")[0]: tag.split("=")[1] for tag in tags.split(",")}},
         "addonsConfig": {"autoApplyPodIdentityAssociations": True},
+        "addons": [
+            {"name": "vpc-cni", "version": "latest"},
+            {"name": "coredns", "version": "latest"},
+            {"name": "kube-proxy", "version": "latest"},
+            {"name": "eks-pod-identity-agent", "version": "latest"},
+        ],
         "managedNodeGroups": parse_node_groups(node_groups),
         "iam": {"withOIDC": True},
     }
@@ -113,10 +119,10 @@ rancher_cmds = [
     "helm repo add jetstack https://charts.jetstack.io",
     "helm repo add rancher-latest https://releases.rancher.com/server-charts/latest",
     "helm repo update",
-    f"helm install aws-load-balancer-controller eks/aws-load-balancer-controller -n kube-system --set clusterName={cluster_name} --set serviceAccount.create=false --set serviceAccount.name=aws-load-balancer-controller",
-    "helm install traefik traefik/traefik -n kube-system -f traefik-values.yaml",
-    "helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true",
-    ("helm install rancher rancher-latest/rancher --create-namespace --namespace cattle-system --set ingress.tls.source=letsEncrypt"
+    f"helm install --atomic aws-load-balancer-controller eks/aws-load-balancer-controller -n kube-system --set clusterName={cluster_name} --set serviceAccount.create=false --set serviceAccount.name=aws-load-balancer-controller",
+    "helm install --atomic traefik traefik/traefik -n kube-system -f traefik-values.yaml",
+    "helm install --atomic cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true",
+    ("helm install --atomic rancher rancher-latest/rancher --create-namespace --namespace cattle-system --set ingress.tls.source=letsEncrypt"
      f" --set letsEncrypt.ingress.class=traefik --set hostname={rancher_fqdn} --set letsEncrypt.email={rancher_fqdn}@maildrop.cc")
 ]
 
