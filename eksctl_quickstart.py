@@ -65,14 +65,7 @@ def generate_config(temp_dir):
         "kind": "ClusterConfig",
         "metadata": {"name": cluster_name, "region": region, "tags": {tag.split("=")[0]: tag.split("=")[1] for tag in tags.split(",")}},
         "addonsConfig": {"autoApplyPodIdentityAssociations": True},
-        "addons": [
-            {"name": "vpc-cni", "version": "latest"},
-            {"name": "coredns", "version": "latest"},
-            {"name": "kube-proxy", "version": "latest"},
-            {"name": "eks-pod-identity-agent", "version": "latest"},
-        ],
         "managedNodeGroups": parse_node_groups(node_groups),
-        "kubernetesNetworkConfig": {"ipFamily": "IPv6"},
         "iam": {"withOIDC": True},
     }
 
@@ -86,7 +79,6 @@ def generate_config(temp_dir):
 traefik_config = """service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: external
-    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
     service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
     service.beta.kubernetes.io/aws-load-balancer-ip-address-type: dualstack
   spec:
