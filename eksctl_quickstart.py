@@ -86,7 +86,6 @@ traefik_config = """service:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: external
     service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-    service.beta.kubernetes.io/aws-load-balancer-ip-address-type: dualstack
   spec:
     externalTrafficPolicy: Local
 
