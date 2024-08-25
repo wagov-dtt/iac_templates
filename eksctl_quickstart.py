@@ -9,18 +9,24 @@ region = os.environ.get("AWS_REGION", "ap-southeast-2")
 tags = os.environ.get("TAGS", "environment=dev,project=demo")
 node_groups = os.environ.get("NODE_GROUPS", "base:2,scale-spot:1")
 instance_type = os.environ.get("INSTANCE_TYPE", "i4i.2xlarge")
+include_rancher = os.environ.get("RANCHER", "true")
+
 
 def install_tools():
-    run("""
+    run(
+        """
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"; chmod +x kubectl
     curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
     curl -LO "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz"; tar -xzf eksctl_*.tar.gz
-    """, shell=True)
+    """,
+        shell=True,
+    )
+
 
 def parse_node_groups(node_groups_str):
     node_groups = []
-    for group in node_groups_str.split(','):
-        name, size = group.split(':')
+    for group in node_groups_str.split(","):
+        name, size = group.split(":")
         ng = {
             "name": name,
             "instanceType": instance_type,
@@ -28,26 +34,46 @@ def parse_node_groups(node_groups_str):
             "disableIMDSv1": True,
             "amiFamily": "Ubuntu2204",
             "maxPodsPerNode": 600,
-            "preBootstrapCommands": ["setup-local-disks raid0", "apt-get -y update && apt-get -y install open-iscsi"]
+            "volumeSize": 300,
+            "preBootstrapCommands": [
+                "apt-get -y update && apt-get -y install open-iscsi",
+                """cat << 'EOF' > /etc/systemd/system/mount-nvme.service
+[Unit]
+Description=Format and mount NVMe
+DefaultDependencies=no
+Before=local-fs.target
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'mkfs.ext4 -F /dev/nvme1n1; mkdir -p /var/lib/longhorn; mount /dev/nvme1n1 /var/lib/longhorn'
+RemainAfterExit=yes
+[Install]
+WantedBy=sysinit.target
+EOF""",
+                "systemctl enable mount-nvme.service",
+                "systemctl start mount-nvme.service",
+            ],
         }
-        if name.endswith('-spot'):
+        if name.endswith("-spot"):
             ng["spot"] = True
         node_groups.append(ng)
     return node_groups
+
 
 def generate_config(temp_dir):
     config = {
         "apiVersion": "eksctl.io/v1alpha5",
         "kind": "ClusterConfig",
-        "metadata": {
-            "name": cluster_name,
-            "region": region,
-            "tags": {tag.split('=')[0]: tag.split('=')[1] for tag in tags.split(',')}
-        },
-        "addons": [{"name": "vpc-cni"}, {"name": "coredns"}, {"name": "kube-proxy"}],
+        "metadata": {"name": cluster_name, "region": region, "tags": {tag.split("=")[0]: tag.split("=")[1] for tag in tags.split(",")}},
+        "addonsConfig": {"autoApplyPodIdentityAssociations": True},
+        "addons": [
+            {"name": "vpc-cni", "version": "latest"},
+            {"name": "coredns", "version": "latest"},
+            {"name": "kube-proxy", "version": "latest"},
+            {"name": "eks-pod-identity-agent", "version": "latest"},
+        ],
         "managedNodeGroups": parse_node_groups(node_groups),
         "kubernetesNetworkConfig": {"ipFamily": "IPv6"},
-        "iam": {"withOIDC": True}
+        "iam": {"withOIDC": True},
     }
 
     config_path = Path(temp_dir) / "cluster-config.yaml"
@@ -57,11 +83,15 @@ def generate_config(temp_dir):
 
     return config_path
 
+
 def main():
     with tempfile.TemporaryDirectory() as temp_dir:
         os.chdir(temp_dir)
         install_tools()
         run(f"PATH={temp_dir}:$PATH eksctl create cluster -f {generate_config(temp_dir)}", shell=True)
+        if include_rancher:
+            "TODO: use helm to setup rancher and traefik"
+
 
 if __name__ == "__main__":
     main()
