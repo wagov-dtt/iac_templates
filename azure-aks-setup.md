@@ -4,17 +4,18 @@ To get maximum price/performance ration, the below establishes an AKS cluster us
 
 ## Setup using AKS Automatic
 
-Create a cluster using [AKS Automatic](https://learn.microsoft.com/en-us/azure/aks/intro-aks-automatic)
+Create a cluster using [AKS Automatic](https://learn.microsoft.com/en-us/azure/aks/intro-aks-automatic). Connect to the cluster using cloud shell, and run the below bootstrap to configure kubernetes (see [`nodes.yaml`](bootstrap_k8s/config/nodes.yaml) for instance/headroom defaults):
 
-## Install rancher
-
-Ref [`azure_rancher_k3s.py`](azure_rancher_k3s.py).
-
-
-
-## Setup longhorn
+```bash
+# Setup nodes and install rancher
+RANCHER_HOSTNAME=rancher01.cool.domain python bootstrap_k8s.pyz
+kubectl get services # this will show the IP that dns for your domain needs to be pointed at
+```
 
 ## Backup to azure blob storage acct
 
-## Setup a second cluster
+## Add more clusters
 
+```bash
+# Setup nodes and register with existing rancher
+```
