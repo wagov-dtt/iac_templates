@@ -1,0 +1,10 @@
+baseURL = 'https://sre.radk8s.net/'
+languageCode = 'en-us'
+title = 'DGov Site Reliability Engineering'
+theme = 'hugo-book'
+enableGitInfo = true
+
+[params]
+BookTheme = 'auto'
+BookRepo = 'https://github.com/wagov-dtt/site-reliability-engineering'
+BookEditPath = 'edit/main'
